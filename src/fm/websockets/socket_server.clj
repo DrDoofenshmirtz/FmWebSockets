@@ -20,6 +20,7 @@
 (defn- server-socket-seq [socket-access port]
   (take-while identity (repeatedly #(create-socket! socket-access port))))
 
+;; TODO: skip failures!
 (defn- wait-for-client-socket [server-socket]
   (if-let [client-socket (do-silently (.accept server-socket))]
     (if-not (.isClosed server-socket)
@@ -31,12 +32,6 @@
     (take-while
       identity
       (repeatedly #(wait-for-client-socket server-socket)))))
-
-(defn- protected-access [mutable]
-  (let [lock (Object.)]
-    (fn [accessor & args]
-      (locking lock
-        (apply accessor mutable args)))))
 
 (defn- connection-seq [server-sockets]
   (when-first [server-socket server-sockets]
@@ -52,6 +47,12 @@
     (if-not (or (= closed-tag socket) (error? socket))
       (close-silently socket))))
 
+(defn- protected-access [mutable]
+  (let [lock (Object.)]
+    (fn [accessor & args]
+      (locking lock
+        (apply accessor mutable args)))))
+
 (defn- connection-producer [port]
   (let [socket-access (protected-access (atom nil))
         server-sockets (server-socket-seq socket-access port)
@@ -62,7 +63,7 @@
 (def cp (connection-producer 8080))
 
 (future
-  (Thread/sleep 100)
+  (Thread/sleep 200)
   (println "closing...")
   (println ((:close! cp)))
   (println "closed!"))
