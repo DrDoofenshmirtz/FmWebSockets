@@ -16,26 +16,30 @@
     (close-silently socket)))
 
 (defn- create-socket! [socket-access port]
-  (let [[old-socket new-socket]
-        (socket-access
-          (fn [current-socket]
-            (let [old-socket @current-socket]
-              [old-socket
-               (if-not (= closed-tag old-socket)
-                 (let [new-socket (do-silently (ServerSocket. port))]
-                   (reset! current-socket new-socket)))])))]
-    (close-if-socket old-socket)
-    new-socket))
+  (socket-access
+    (fn [current-socket]
+      (let [socket @current-socket]
+        (close-if-socket socket)
+        (if (not= closed-tag socket)
+           (let [socket (do-silently (ServerSocket. port))]
+             (reset! current-socket socket)))))))
 
 (defn- server-socket-seq [socket-access port]
   (take-while identity (repeatedly #(create-socket! socket-access port))))
 
+(defn- wait-for-client-socket [server-socket]
+  (if-let [client-socket (do-silently (.accept server-socket))]
+    (if-not (.isClosed server-socket)
+      client-socket)))
+
 (defn- client-socket-seq [server-socket]
   (if (error? server-socket)
     [server-socket]
-    (take-until
-      error?
-      (repeatedly #(do-silently (.accept server-socket))))))
+    (take-while
+      identity
+      (take-until
+        error?
+        (repeatedly #(wait-for-client-socket server-socket))))))
 
 (defn- connection-seq [server-sockets]
   (when-first [server-socket server-sockets]
@@ -66,7 +70,7 @@
 (def cp (connection-producer 8080))
 
 @(future
-  (Thread/sleep 100)
+  (Thread/sleep 500)
   (println "closing...")
   (println ((:close! cp)))
   (println "closed!"))
