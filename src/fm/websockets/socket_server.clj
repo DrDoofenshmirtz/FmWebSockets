@@ -42,9 +42,10 @@
         (repeatedly #(wait-for-client-socket server-socket))))))
 
 (defn- connection-seq [server-sockets]
-  (when-first [server-socket server-sockets]
-    (lazy-cat
-      (client-socket-seq server-socket)
+  (lazy-cat
+    (when-first [server-socket server-sockets]
+      (client-socket-seq server-socket))
+    (if (seq server-sockets)
       (connection-seq (rest server-sockets)))))
 
 (defn- close-socket! [socket-access]
@@ -69,7 +70,7 @@
 
 (def cp (connection-producer 8080))
 
-@(future
+(future
   (Thread/sleep 500)
   (println "closing...")
   (println ((:close! cp)))
