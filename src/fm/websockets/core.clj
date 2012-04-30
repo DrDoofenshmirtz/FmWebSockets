@@ -1,7 +1,7 @@
 (ns fm.websockets.core
   (:use
     [fm.core.lazy-seqs :only (unsigned-byte-seq)]
-    [fm.websockets.server :only (start-up)]
+    [fm.websockets.socket-server :only (start-up)]
     [fm.websockets.protocol :only (read-connect-request
                                    write-connect-response
                                    send-object
@@ -28,12 +28,4 @@
           (recur (rest message-seq-seq)))
         (println "Connection closed. Bye!")))))
 
-(defn- handle-connection [socket]
-  (try
-    (read-http-message socket)
-    (catch Throwable t
-      (println "!-Error:" t)
-      (.printStackTrace t)
-      (throw t))))
-
-(start-up 17500 handle-connection #(println %))
+(start-up 17500 read-http-message)
