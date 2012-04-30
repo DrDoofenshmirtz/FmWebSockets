@@ -5,7 +5,8 @@
   (:use
     [clojure.contrib.def :only (defvar-)]
     [fm.core.lazy-seqs :only (take-until)]
-    [fm.core.exception :only (do-silently close-silently error?)])
+    [fm.core.exception :only (do-silently close-silently error?)]
+    [fm.core.threading :only (guarded-ref)])
   (:import
     (java.net ServerSocket)))
 
@@ -17,12 +18,12 @@
 
 (defn- create-socket! [socket-access port]
   (socket-access
-    (fn [current-socket]
-      (let [socket @current-socket]
-        (close-if-socket socket)
-        (if (not= closed-tag socket)
-           (let [socket (do-silently (ServerSocket. port))]
-             (reset! current-socket socket)))))))
+    (fn [socket]
+      (close-if-socket socket)
+      (if (= closed-tag socket)
+        [socket]
+        (let [socket (do-silently (ServerSocket. port))]
+          [socket socket])))))
 
 (defn- server-socket-seq [socket-access port]
   (take-while identity (repeatedly #(create-socket! socket-access port))))
@@ -48,33 +49,26 @@
     (if (seq server-sockets)
       (connection-seq (rest server-sockets)))))
 
-(defn- close-socket! [socket-access]
-  (if-let [socket (socket-access
-                    (fn [current-socket]
-                      (let [socket @current-socket]
-                        (reset! current-socket closed-tag)
-                        socket)))]
-    (close-if-socket socket)))
-
-(defn- protected-access [mutable]
-  (let [lock (Object.)]
-    (fn [accessor & args]
-      (locking lock
-        (apply accessor mutable args)))))
-
 (defn- connection-producer [port]
-  (let [socket-access (protected-access (atom nil))
+  (let [socket-access (guarded-ref)
         server-sockets (server-socket-seq socket-access port)]
     {:connections (connection-seq server-sockets)
-     :close! #(close-socket! socket-access)}))
+     :socket-access socket-access}))
+
+(defn- close-socket! [socket-access]
+  (if-let [socket (socket-access #(vector closed-tag %))]
+    (close-if-socket socket)))
+
+(defn- stop-production! [connection-producer]
+  (close-socket! (:socket-access connection-producer)))
 
 (def cp (connection-producer 8080))
 
 (future
   (Thread/sleep 500)
-  (println "closing...")
-  (println ((:close! cp)))
-  (println "closed!"))
+  (println "Stopping production...")
+  (println (stop-production! cp))
+  (println "...stopped!"))
 
 (doseq [connection (:connections cp)]
   (println connection))
