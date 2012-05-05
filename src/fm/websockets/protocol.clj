@@ -90,7 +90,7 @@
                                 126 (read-payload-bytes unsigned-byte-seq 2)
                                 127 (read-payload-bytes unsigned-byte-seq 8)
                                 [payload-length unsigned-byte-seq])]
-    [(assoc message :payload-length payload-length) unsigned-byte-seq]))
+    [(assoc message :payload-length payload-length) tail]))
 
 (defn- read-mask-bytes [message unsigned-byte-seq]
   (let [[mask-bytes tail] (split-at 4 unsigned-byte-seq)]
