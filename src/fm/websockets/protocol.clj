@@ -139,7 +139,8 @@
 
 (defn message-seq [unsigned-byte-seq]
   (lazy-seq (let [[message tail] (read-message unsigned-byte-seq)]
-              (if message (cons message (message-seq tail))))))
+              (if (and message (not= :connection-close (:opcode message)))
+                (cons message (message-seq tail))))))
 
 (defn message-seq-seq [unsigned-byte-seq]
   (letfn [(chunked-message-seq [message-seq]
