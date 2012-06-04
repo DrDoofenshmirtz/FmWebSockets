@@ -149,9 +149,7 @@
     message-seq))
 
 (defn message-seq-seq [unsigned-byte-seq]
-  (letfn [(final-fragment? [[message tail]]
-            (:final-fragment? message))
-          (chunked-message-seq [message-seq]
+  (letfn [(chunked-message-seq [message-seq]
             (lazy-seq (if (seq message-seq)
                         (let [[head tail]
                               (split-after-final-fragment message-seq)]
