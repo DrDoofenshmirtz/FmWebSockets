@@ -24,7 +24,7 @@
     (loop [message-seq-seq (message-seq-seq byte-seq)]
       (if-let [message-seq (first message-seq-seq)]
         (do
-          (println (map first message-seq))
+          (println message-seq)
           (recur (rest message-seq-seq)))
         (println "Connection closed. Bye!")))))
 

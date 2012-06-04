@@ -138,21 +138,14 @@
       [(if-not (empty? message) message) input])))
 
 (defn message-seq [unsigned-byte-seq]
-  (lazy-seq (let [[message tail :as message-and-tail]
-                  (read-message unsigned-byte-seq)]
-              (if message (cons message-and-tail (message-seq tail))))))
-
-(defn- split-after-final-fragment [message-seq]
-  (split-after
-    (fn [[message tail]]
-      (:final-fragment? message))
-    message-seq))
+  (lazy-seq (let [[message tail] (read-message unsigned-byte-seq)]
+              (if message (cons message (message-seq tail))))))
 
 (defn message-seq-seq [unsigned-byte-seq]
   (letfn [(chunked-message-seq [message-seq]
             (lazy-seq (if (seq message-seq)
                         (let [[head tail]
-                              (split-after-final-fragment message-seq)]
+                              (split-after :final-fragment? message-seq)]
                           (cons head (chunked-message-seq tail))))))]
     (chunked-message-seq (message-seq unsigned-byte-seq))))
 
