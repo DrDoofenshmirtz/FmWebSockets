@@ -4,7 +4,6 @@
   fm.websockets.protocol
   (:use
     [clojure.contrib.def :only (defvar-)]
-    [clojure.contrib.json :only (json-str)]
     [fm.core.lazy-seqs :only (split-after split-after-tail)]
     [fm.core.bytes :only (signed-byte number<-bytes number->bytes)])
   (:import
@@ -137,6 +136,29 @@
         (recur input message (rest readers)))
       [(if-not (empty? message) message) input])))
 
+(defn opcode [message]
+  (:opcode (first message)))
+
+(defn binary-message? [message]
+  (= :binary-message (opcode message)))
+
+(defn text-message? [message]
+  (= :text-message (opcode message)))
+
+(defn payload-bytes [message]
+  (if (seq message)
+    (lazy-cat
+      (:payload (first message))
+      (payload-bytes (rest message)))))
+
+(defmulti message-content opcode)
+
+(defmethod message-content :binary-message [message]
+  (payload-bytes message))
+
+(defmethod message-content :text-message [message]
+  (-> (map signed-byte (payload-bytes message)) byte-array String.))
+
 (defn message-seq [unsigned-byte-seq]
   (lazy-seq (let [[message tail] (read-message unsigned-byte-seq)]
               (if (and message (not= :connection-close (:opcode message)))
@@ -185,6 +207,3 @@
 
 (defn send-text [output-stream text]
   (send-bytes output-stream (.getBytes text) :text-message true))
-
-(defn send-object [output-stream object]
-  (send-text output-stream (json-str object)))

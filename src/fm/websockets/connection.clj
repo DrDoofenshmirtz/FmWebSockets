@@ -23,8 +23,9 @@
     {:messages (message-seq-seq byte-seq)
      :output (guarded-access output-stream)}))
 
-(defmacro with-output
-  "Evaluates the body expressions with the output stream of the given
-  WebSocket connection bound to '%out'."
-  [connection & body]
- `((:output ~connection) (fn [~'%out] ~@body)))
+(defn take-message
+  "Takes the next message from the given connection's lazy message sequence.
+  Returns a collection of [next-message connection-with-remaining-messages]."
+  [connection]
+  [(first (:messages connection))
+   (assoc connection :messages (rest (:messages connection)))])

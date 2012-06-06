@@ -1,17 +1,17 @@
 (ns fm.websockets.core
   (:use
     [fm.websockets.server :only (start-up)]
-    [fm.websockets.protocol :only (send-object)]
-    [fm.websockets.connection :only (with-output)]))
+    [fm.websockets.json-rpc :only (connection-handler)]))
 
-(defn- send-greeting-and-print-messages [connection]
-  (with-output connection
-    (send-object %out {:id 1 :result "Connected!"}))
-  (loop [messages (:messages connection)]
-    (if-let [message (first messages)]
-      (do
-        (println message)
-        (recur (rest messages)))
-      (println "Connection closed. Bye!"))))
+(defn- print-rpc [connection method params]
+  (println (format "RPC{ method: %s, params: %s }" method params)))
 
-(start-up 17500 send-greeting-and-print-messages)
+(defn- make-connection-handler []
+  (let [json-rpc-handler (connection-handler print-rpc)]
+    (fn [connection]
+      (println "Connection established!")
+      (let [connection (json-rpc-handler connection)]
+        (println (format "Connection %s closed. Bye!" connection))
+        connection))))
+
+(start-up 17500 (make-connection-handler))
