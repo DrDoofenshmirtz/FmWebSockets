@@ -7,7 +7,7 @@
     [fm.core.lazy-seqs :only (unsigned-byte-seq)]
     [fm.websockets.protocol :only (read-connect-request
                                    write-connect-response
-                                   message-seq-seq)]))
+                                   message-seq)]))
 
 (defn connect
   "Tries to establish a WebSocket connection, assuming the given socket is
@@ -20,8 +20,7 @@
         byte-seq (unsigned-byte-seq input-stream)
         [connect-request byte-seq] (read-connect-request byte-seq)]
     (write-connect-response output-stream connect-request)
-    {:messages (message-seq-seq byte-seq)
-     :output (guarded-access output-stream)}))
+    {:messages (message-seq byte-seq) :output (guarded-access output-stream)}))
 
 (defn take-message
   "Takes the next message from the given connection's lazy message sequence.

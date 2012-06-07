@@ -83,17 +83,17 @@
   (let [[payload-bytes tail] (split-at length unsigned-byte-seq)]
     [(number<-bytes payload-bytes) tail]))
 
-(defn- read-payload-length [message unsigned-byte-seq]
-  (let [payload-length (:payload-length message)
+(defn- read-payload-length [fragment unsigned-byte-seq]
+  (let [payload-length (:payload-length fragment)
         [payload-length tail] (case payload-length
                                 126 (read-payload-bytes unsigned-byte-seq 2)
                                 127 (read-payload-bytes unsigned-byte-seq 8)
                                 [payload-length unsigned-byte-seq])]
-    [(assoc message :payload-length payload-length) tail]))
+    [(assoc fragment :payload-length payload-length) tail]))
 
-(defn- read-mask-bytes [message unsigned-byte-seq]
+(defn- read-mask-bytes [fragment unsigned-byte-seq]
   (let [[mask-bytes tail] (split-at 4 unsigned-byte-seq)]
-    [(assoc message :mask-bytes mask-bytes) tail]))
+    [(assoc fragment :mask-bytes mask-bytes) tail]))
 
 (defn- masked-seq [numbers mask-numbers]
   (let [mask-numbers (cycle mask-numbers)
@@ -104,37 +104,50 @@
                     (mask (rest numbers) (rest mask-numbers))))))]
     (mask numbers mask-numbers)))
 
-(defn- read-payload [message unsigned-byte-seq]
-  (let [{:keys [payload-length mask-bytes]} message
+(defn- read-payload [fragment unsigned-byte-seq]
+  (let [{:keys [payload-length mask-bytes]} fragment
         [payload-bytes tail] (split-at payload-length unsigned-byte-seq)
         payload-bytes (masked-seq payload-bytes mask-bytes)]
-    [(assoc message :payload payload-bytes) tail]))
+    [(assoc fragment :payload payload-bytes) tail]))
 
-(defn- read-header [message unsigned-byte-seq]
+(defn- read-header [fragment unsigned-byte-seq]
   (let [[final?-rsvs-opcode masked?-payload-length & tail] unsigned-byte-seq
         final-fragment? (bit-test final?-rsvs-opcode 7)
         opcode (bit-and final?-rsvs-opcode 0xF)
         opcode (opcode-keys-by-opcode-values opcode :unknown)
         masked? (bit-test masked?-payload-length 7)
         payload-length (bit-and masked?-payload-length 0x7F)]
-    [(assoc message
+    [(assoc fragment
        :final-fragment? final-fragment?
        :opcode opcode
        :masked? masked?
        :payload-length payload-length)
      tail]))
 
-(defn read-message [unsigned-byte-seq]
+(defn- read-fragment [unsigned-byte-seq]
   (loop [input unsigned-byte-seq
-         message {}
+         fragment {}
          readers [read-header
                   read-payload-length
                   read-mask-bytes
                   read-payload]]
     (if (and (seq readers) (seq input))
-      (let [[message input] ((first readers) message input)]
-        (recur input message (rest readers)))
-      [(if-not (empty? message) message) input])))
+      (let [[fragment input] ((first readers) fragment input)]
+        (recur input fragment (rest readers)))
+      [(if-not (empty? fragment) fragment) input])))
+
+(defn- fragment-seq [unsigned-byte-seq]
+  (lazy-seq (let [[fragment tail] (read-fragment unsigned-byte-seq)]
+              (if (and fragment (not= :connection-close (:opcode fragment)))
+                (cons fragment (fragment-seq tail))))))
+
+(defn message-seq [unsigned-byte-seq]
+  (letfn [(chunked-fragment-seq [fragment-seq]
+            (lazy-seq (if (seq fragment-seq)
+                        (let [[head tail]
+                              (split-after :final-fragment? fragment-seq)]
+                          (cons head (chunked-fragment-seq tail))))))]
+    (chunked-fragment-seq (fragment-seq unsigned-byte-seq))))
 
 (defn opcode [message]
   (:opcode (first message)))
@@ -159,19 +172,6 @@
 (defmethod message-content :text-message [message]
   (-> (map signed-byte (payload-bytes message)) byte-array String.))
 
-(defn message-seq [unsigned-byte-seq]
-  (lazy-seq (let [[message tail] (read-message unsigned-byte-seq)]
-              (if (and message (not= :connection-close (:opcode message)))
-                (cons message (message-seq tail))))))
-
-(defn message-seq-seq [unsigned-byte-seq]
-  (letfn [(chunked-message-seq [message-seq]
-            (lazy-seq (if (seq message-seq)
-                        (let [[head tail]
-                              (split-after :final-fragment? message-seq)]
-                          (cons head (chunked-message-seq tail))))))]
-    (chunked-message-seq (message-seq unsigned-byte-seq))))
-
 (defn- payload-length [length]
   (if (<= length 125)
     [length]
@@ -195,15 +195,18 @@
                              opcode-value)
         [payload-length payload-length-bytes] (payload-length (count bytes))
         mask-bytes (generate-mask-bytes)
-        message-bytes (concat
-                        [final?-rsvs-opcode (bit-set payload-length 7)]
-                        payload-length-bytes
-                        mask-bytes
-                        (masked-seq bytes mask-bytes))
-        message-bytes (byte-array (map signed-byte message-bytes))]
+        fragment-bytes (concat
+                         [final?-rsvs-opcode (bit-set payload-length 7)]
+                         payload-length-bytes
+                         mask-bytes
+                         (masked-seq bytes mask-bytes))
+        fragment-bytes (byte-array (map signed-byte fragment-bytes))]
     (doto output-stream
-      (.write message-bytes 0 (count message-bytes))
+      (.write fragment-bytes 0 (count fragment-bytes))
       (.flush))))
 
-(defn send-text [output-stream text]
+(defn send-binary-message [output-stream bytes]
+  (send-bytes output-stream bytes :binary-message true))
+
+(defn send-text-message [output-stream text]
   (send-bytes output-stream (.getBytes text) :text-message true))

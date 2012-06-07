@@ -6,13 +6,13 @@
     [clojure.contrib.json :only (json-str read-json)]
     [fm.core.bytes :only (signed-byte)]
     [fm.core.threading :only (with-guarded)]
-    [fm.websockets.protocol :only (send-text message-content)]
+    [fm.websockets.protocol :only (send-text-message message-content)]
     [fm.websockets.connection :only (take-message)])
   (:import
     (java.util UUID)))
 
 (defn send-object [output-stream object]
-  (send-text output-stream (json-str object)))
+  (send-text-message output-stream (json-str object)))
 
 (defn send-response [output id result]
   (with-guarded output
