@@ -6,7 +6,9 @@
     [clojure.contrib.json :only (json-str read-json)]
     [fm.core.bytes :only (signed-byte)]
     [fm.core.threading :only (with-guarded)]
-    [fm.websockets.protocol :only (send-text-message message-content)]
+    [fm.websockets.protocol :only (text-message?
+                                   send-text-message
+                                   message-content)]
     [fm.websockets.connection :only (take-message)])
   (:import
     (java.util UUID)))
@@ -33,8 +35,17 @@
   (send-notification output "connectionAcknowledged" id)
   connection)
 
+(defn- maybe-rpc-message? [message]
+  (and message (text-message? message)))
+
+(defn- try-read-rpc [message]
+  (try
+    (read-json (message-content message))
+    (catch Exception _ nil)))
+
 (defn- read-rpc [message]
-  (read-json (message-content message)))
+  (if (maybe-rpc-message? message)
+    (try-read-rpc message)))
 
 (defn- dispatch-rpc [connection rpc-dispatcher message]
   (let [{:keys [id method params]} (read-rpc message)]
