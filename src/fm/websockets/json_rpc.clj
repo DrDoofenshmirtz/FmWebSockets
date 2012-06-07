@@ -48,15 +48,14 @@
     (try-read-rpc message)))
 
 (defn- dispatch-rpc [connection rpc-dispatcher message]
-  (let [{:keys [id method params]} (read-rpc message)]
-    (rpc-dispatcher connection method params)))
+  (if-let [{:keys [id method params]} (read-rpc message)]
+    (rpc-dispatcher connection method params)
+    connection))
 
 (defn- dispatch-rpcs [connection rpc-dispatcher]
   (loop [[message connection] (take-message connection)]
     (if message
-      (do
-        (dispatch-rpc connection rpc-dispatcher message)
-        (recur (take-message connection)))
+      (recur (take-message (dispatch-rpc connection rpc-dispatcher message)))
       connection)))
 
 (defn connection-handler [rpc-dispatcher]

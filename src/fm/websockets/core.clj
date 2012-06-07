@@ -4,7 +4,8 @@
     [fm.websockets.json-rpc :only (connection-handler)]))
 
 (defn- print-rpc [connection method params]
-  (println (format "RPC{ method: %s, params: %s }" method params)))
+  (println (format "RPC{ method: %s, params: %s }" method params))
+  connection)
 
 (defn- make-connection-handler []
   (let [json-rpc-handler (connection-handler print-rpc)]
