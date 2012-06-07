@@ -1,0 +1,3 @@
+2012/06/07:
+- check incoming rpcs for valid ids.
+- hyphenate method names of rpcs.
