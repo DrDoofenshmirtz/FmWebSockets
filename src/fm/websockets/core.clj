@@ -1,17 +1,22 @@
 (ns fm.websockets.core
   (:use
     [fm.websockets.server :only (start-up)]
-    [fm.websockets.json-rpc :only (connection-handler)]))
+    [fm.websockets.json-rpc :only (connection-handler ns-dispatcher)]))
 
-(defn- print-rpc [connection method params]
-  (println (format "RPC{ method: %s, params: %s }" method params))
-  connection)
+(defn- print-request [connection method params]
+  (println (format "Request{ method: %s, params: %s }" method params)))
+
+(defn- request-dispatcher []
+  (let [ns-dispatcher (ns-dispatcher 'fm.websockets.rpc-demo)]
+  (fn [connection method params]
+    (print-request connection method params)
+    (ns-dispatcher connection method params))))
 
 (defn- make-connection-handler []
-  (let [json-rpc-handler (connection-handler print-rpc)]
+  (let [connection-handler (connection-handler (request-dispatcher))]
     (fn [connection]
       (println "Connection established!")
-      (let [connection (json-rpc-handler connection)]
+      (let [connection (connection-handler connection)]
         (println (format "Connection %s closed. Bye!" connection))
         connection))))
 
