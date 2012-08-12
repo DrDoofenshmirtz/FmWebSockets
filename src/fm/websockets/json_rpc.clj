@@ -2,38 +2,33 @@
   ^{:doc "JSON RPC layer for HTML5 WebSocket connections."
     :author "Frank Mosebach"}
   fm.websockets.json-rpc
+  (:refer-clojure :exclude [send])
   (:use
     [clojure.contrib.json :only (json-str read-json)]
     [fm.core.bytes :only (signed-byte)]
-    [fm.core.threading :only (with-guarded)]
     [fm.core.hyphenate :only (hyphenate)]
-    [fm.websockets.protocol :only (text-message?
-                                   send-text-message
-                                   message-content)]
-    [fm.websockets.connection :only (take-message)])
+    [fm.websockets.protocol :only (text-message? message-content)]
+    [fm.websockets.connection :only (send take-message)])
   (:import
     (java.util UUID)))
 
-(defn send-object [output-stream object]
-  (send-text-message output-stream (json-str object)))
+(defn send-object [target object]
+  (send target (json-str object)))
 
-(defn send-response [output id result]
-  (with-guarded output
-    (send-object % {:id id :result result :error nil})))
+(defn send-response [target id result]
+  (send-object target {:id id :result result :error nil}))
 
-(defn send-error [output id error]
-  (with-guarded output
-    (send-object % {:id id :result nil :error error})))
+(defn send-error [target id error]
+  (send-object target {:id id :result nil :error error}))
 
-(defn send-notification [output method & params]
-  (with-guarded output
-    (send-object % {:id nil :method method :params params})))
+(defn send-notification [target method & params]
+  (send-object target {:id nil :method method :params params}))
 
 (defn- sign-connection [connection]
   (assoc connection :id (str (UUID/randomUUID))))
 
-(defn- acknowledge-connection [{:keys [id output] :as connection}]
-  (send-notification output "connectionAcknowledged" id)
+(defn- acknowledge-connection [{:keys [id] :as connection}]
+  (send-notification connection "connectionAcknowledged" id)
   connection)
 
 (defn- maybe-request? [message]
@@ -91,8 +86,7 @@
                      (request-dispatcher connection method params))
                    (catch Throwable error (result connection error true)))
           [connection] result]
-      (with-guarded (:output connection)
-        (send-object % (response id result)))
+      (send-object connection (response id result))
       connection)
     connection))
 
