@@ -9,5 +9,5 @@ fi
 
 SCRIPT_HOME=`dirname $SCRIPT_HOME`
 
-java -server -Xms250m -Xmx500m -cp "${SCRIPT_HOME}/lib/*" fm.websockets.Server $*
+java -server -Xms250m -Xmx500m -cp "${SCRIPT_HOME}/lib/*" fm.websockets.samples.counter.CounterApp $*
 
