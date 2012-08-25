@@ -5,7 +5,6 @@
   (:require
     [fm.websockets.socket-server :as socket-server])
   (:use
-    [clojure.contrib.command-line :only (with-command-line)]
     [fm.websockets.connection :only (connect)]))
 
 (defn- wrap-connection-handler [connection-handler]
