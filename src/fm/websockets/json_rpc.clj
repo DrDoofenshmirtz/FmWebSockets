@@ -43,6 +43,11 @@
   (if (maybe-request? message)
     (try-read-request message)))
 
+(defn- check-request-id [connection-id request-id]
+  (if-not (.startsWith (str request-id) (str connection-id))
+    (throw (IllegalArgumentException.
+             (format "Illegal request id: '%s'!" request-id)))))
+
 (defn- result-type [connection & args]
   (if (nil? connection)
     (throw (IllegalArgumentException. "Illegal connection: nil!"))
@@ -80,14 +85,16 @@
 
 (defn- dispatch-request [connection request-dispatcher message]
   (if-let [{:keys [id method params]} (read-request message)]
-    (let [result (try
-                   (result
-                     connection
-                     (request-dispatcher connection method params))
-                   (catch Throwable error (result connection error true)))
-          [connection] result]
-      (send-object connection (response id result))
-      connection)
+    (do
+      (check-request-id (:id connection) id)
+      (let [result (try
+                     (result
+                       connection
+                       (request-dispatcher connection method params))
+                     (catch Throwable error (result connection error true)))
+            [connection] result]
+        (send-object connection (response id result))
+        connection))
     connection))
 
 (defn- dispatch-requests [connection request-dispatcher]
