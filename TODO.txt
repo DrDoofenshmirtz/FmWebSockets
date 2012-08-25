@@ -1,4 +1,3 @@
 - document json rpc api
 - polish and pack the api
 - implement connection with state
-- check incoming rpcs for valid ids.
