@@ -35,4 +35,5 @@
     [[port "The app's server port number" 17500]]
     (println (str "Starting CounterApp server on port " port "..."))
     (let [port (Integer/parseInt (.trim (str port)) 10)]
-      (start-up port (make-connection-handler)))))
+      (start-up port (make-connection-handler))
+      (println "...done. Waiting for clients..."))))
