@@ -65,7 +65,8 @@
   (send-binary-message output-stream content))
 
 (defn send [target content & contents]
-  "Sends a collection of contents to the given target."
+  "Sends a collection of contents to the given target.
+  The target may be a connection or its ouput."
   (with-guarded (output target)
     (doseq [content (cons content contents)]
       (send-content % content))))
