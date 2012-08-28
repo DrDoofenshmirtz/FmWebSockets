@@ -24,6 +24,7 @@
   (let [connection-handler (connection-handler (request-dispatcher))]
     (fn [connection]
       (println "Connection established!")
+      (println (str "Request: " (:request connection)))
       (let [connection (assoc connection :counter 0)
             connection (connection-handler connection)]
         (println (format "Connection %s closed. Bye!" connection))
