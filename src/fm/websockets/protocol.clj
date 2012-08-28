@@ -12,13 +12,9 @@
     (org.apache.commons.codec.digest DigestUtils)
     (org.apache.commons.codec.binary Base64)))
 
-(defvar- ws-spec-guid "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+(defvar- request-header-pattern #"^\s*([^\:]+)\:\s*(.*)$")
 
-(defvar- request-keys-by-line-start {"Connection: "        :connection
-                                     "Upgrade: "           :upgrade
-                                     "Host: "              :host
-                                     "Origin: "            :origin
-                                     "Sec-WebSocket-Key: " :sec-ws-key})
+(defvar- ws-spec-guid "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
 
 (defvar- opcode-keys-by-opcode-values {0x0 :message-continuation
                                        0x1 :text-message
@@ -34,15 +30,18 @@
                                        :ping                 0x9
                                        :pong                 0xA})
 
-(defn- add-request-entry [request line]
-  (if-let [request-entry (some
-                           (fn [[line-start request-key]]
-                             (if (.startsWith line line-start)
-                               [request-key
-                                (.substring line (.length line-start))]))
-                           request-keys-by-line-start)]
-    (apply assoc request request-entry)
-    request))
+(defn- parse-request-headers [request-lines]
+  (reduce
+    conj
+    {}
+    (map
+      (fn [[_ key value]]
+        [(keyword (.toLowerCase key)) value])
+      (filter
+        identity
+        (map
+          #(re-find request-header-pattern %)
+          request-lines)))))
 
 (defn- parse-connect-request [unsigned-request-bytes]
   (let [request-bytes (byte-array (map signed-byte unsigned-request-bytes))
@@ -51,7 +50,9 @@
                           InputStreamReader.
                           BufferedReader.
                           line-seq)]
-    (reduce add-request-entry {} request-lines)))
+        request-lines (filter #(> (.length (.trim %)) 0) request-lines)
+    {:request-line (first request-lines)
+     :request-headers (parse-request-headers (rest request-lines))}))
 
 (defn read-connect-request [unsigned-byte-seq]
   (let [[request-bytes tail]
@@ -64,7 +65,9 @@
     (DigestUtils/sha (str sec-ws-key ws-spec-guid))))
 
 (defn write-connect-response [output-stream connect-request]
-  (let [sec-ws-accept (sec-ws-accept (:sec-ws-key connect-request))
+  (let [sec-ws-accept (sec-ws-accept (-> connect-request
+                                         :request-headers
+                                         :sec-websocket-key))
         writer (-> output-stream OutputStreamWriter. BufferedWriter.)]
     (doto writer
       (.write "HTTP/1.1 101 Switching Protocols")
