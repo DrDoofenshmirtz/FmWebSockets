@@ -1,3 +1,5 @@
+- add logging support
 - document json rpc api
 - polish and pack the api
-- implement connection with state
+- implement ping/pong
+- validate WebSocket connect requests (service name, etc.) -> can be done in connection handlers! -> sample!
