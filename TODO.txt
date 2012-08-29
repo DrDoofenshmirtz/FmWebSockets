@@ -1,4 +1,4 @@
-- add logging support
+- profile memory consumption (messages...)
 - document json rpc api
 - polish and pack the api
 - implement ping/pong
