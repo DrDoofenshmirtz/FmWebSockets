@@ -4,6 +4,7 @@
   fm.websockets.connection
   (:refer-clojure :exclude [send])
   (:use
+    [clojure.contrib.logging :only (debug)]
     [fm.core.threading :only (guarded-access with-guarded)]
     [fm.core.lazy-seqs :only (unsigned-byte-seq)]
     [fm.websockets.protocol :only (read-connect-request
@@ -34,7 +35,12 @@
         output-stream (.getOutputStream socket)
         byte-seq (unsigned-byte-seq input-stream)
         [connect-request byte-seq] (read-connect-request byte-seq)]
+    (debug (format
+             "Connecting to WebSocket client (remote address: %s)..."
+             (.getRemoteSocketAddress socket)))
+    (debug (format "Request: %s" connect-request))
     (write-connect-response output-stream connect-request)
+    (debug "Connected to WebSocket client.")
     (make-connection connect-request byte-seq output-stream)))
 
 (defn take-message

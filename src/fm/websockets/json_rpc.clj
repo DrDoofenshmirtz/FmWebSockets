@@ -4,6 +4,7 @@
   fm.websockets.json-rpc
   (:refer-clojure :exclude [send])
   (:use
+    [clojure.contrib.logging :only (debug fatal)]
     [clojure.contrib.json :only (json-str read-json)]
     [fm.core.bytes :only (signed-byte)]
     [fm.core.hyphenate :only (hyphenate)]
@@ -86,16 +87,24 @@
 (defn- dispatch-request [connection request-dispatcher message]
   (if-let [{:keys [id method params]} (read-request message)]
     (do
+      (debug (format
+               "Dispatch request {id: %s, method: %s, params: %s}..."
+               id method params))
       (check-request-id (:id connection) id)
       (let [result (try
                      (result
                        connection
                        (request-dispatcher connection method params))
                      (catch Throwable error (result connection error true)))
-            [connection] result]
+            [connection return-value] result]
+        (debug (format "...done. Return value: %s." return-value))
+        (debug "Send response...")
         (send-object connection (response id result))
+        (debug "...done.")
         connection))
-    connection))
+    (do
+      (debug "Skipped message.")
+      connection)))
 
 (defn- dispatch-requests [connection request-dispatcher]
   (loop [[message connection] (take-message connection)]
@@ -109,8 +118,14 @@
 
 (defn connection-handler [request-dispatcher]
   (fn [connection]
-    (let [connection (-> connection sign-connection acknowledge-connection)]
-      (dispatch-requests connection request-dispatcher))))
+    (debug "JSON RPC connection established.")
+    (debug (format "Request: %s" (:request connection)))
+    (debug "Dispatching requests...")
+    (let [connection (-> connection
+                         sign-connection
+                         acknowledge-connection
+                         (dispatch-requests request-dispatcher))]
+      (debug (format "JSON RPC connection closed: %s." connection)))))
 
 (defn ns-dispatcher [ns-name]
   (require ns-name)
@@ -118,7 +133,8 @@
     (let [procedure-name (symbol (hyphenate method))]
       (if-let [procedure ((ns-interns ns-name) procedure-name)]
         (apply procedure connection params)
-        (throw (IllegalArgumentException.
-                 (format
-                   "Undefined procedure: '%s' in namespace '%s'!"
-                   procedure-name ns-name)))))))
+        (let [error-message (format
+                              "Undefined procedure: '%s' in namespace '%s'!"
+                              procedure-name ns-name)]
+          (fatal error-message)
+          (throw (IllegalArgumentException. error-message)))))))

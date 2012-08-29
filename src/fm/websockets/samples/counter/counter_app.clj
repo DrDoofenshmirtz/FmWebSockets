@@ -7,34 +7,25 @@
     :name fm.websockets.samples.counter.CounterApp
     :main true)
   (:use
+    [clojure.contrib.def :only (defvar-)]
+    [clojure.contrib.logging :only (debug)]
     [clojure.contrib.command-line :only (with-command-line)]
     [fm.websockets.server :only (start-up)]
     [fm.websockets.json-rpc :only (connection-handler ns-dispatcher)]))
 
-(defn- print-request [connection method params]
-  (println (format "Request{ method: %s, params: %s }" method params)))
-
-(defn- request-dispatcher []
-  (let [ns-dispatcher (ns-dispatcher 'fm.websockets.samples.counter.counter-service)]
-    (fn [connection method params]
-      (print-request connection method params)
-      (ns-dispatcher connection method params))))
+(defvar- service-namespace 'fm.websockets.samples.counter.counter-service)
 
 (defn- make-connection-handler []
-  (let [connection-handler (connection-handler (request-dispatcher))]
+  (let [connection-handler (connection-handler
+                             (ns-dispatcher service-namespace))]
     (fn [connection]
-      (println "Connection established!")
-      (println (str "Request: " (:request connection)))
-      (let [connection (assoc connection :counter 0)
-            connection (connection-handler connection)]
-        (println (format "Connection %s closed. Bye!" connection))
-        connection))))
+      (connection-handler (assoc connection :counter 0)))))
 
 (defn -main [& args]
   (with-command-line args
     "CounterApp"
     [[port "The app's server port number" 17500]]
-    (println (str "Starting CounterApp server on port " port "..."))
+    (debug (format "Starting CounterApp server on port %s..." port))
     (let [port (Integer/parseInt (.trim (str port)) 10)]
       (start-up port (make-connection-handler))
-      (println "...done. Waiting for clients..."))))
+      (debug "...done. Waiting for clients..."))))
