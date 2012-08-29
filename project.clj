@@ -6,7 +6,8 @@
                  [fm.clojure/clojure-contrib "1.2.0"]
                  [fm.jakarta-commons/commons-codec "1.6"]
                  [fm/fm-core "1.0.3"]]
-  :aot [fm.websockets.samples.counter.counter-app]
+  :aot [fm.websockets.samples.counter.counter-app
+        fm.websockets.samples.memprof.memory-profiling-app]
   :disable-deps-clean true    
   :repositories {"fm-local" ~local-repo-path}
   :jar-name "fm-websockets.jar"
