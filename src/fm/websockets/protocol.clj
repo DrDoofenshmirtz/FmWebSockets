@@ -101,10 +101,10 @@
 (defn- masked-seq [numbers mask-numbers]
   (let [mask-numbers (cycle mask-numbers)
         mask (fn mask [numbers mask-numbers]
-      (lazy-seq (if (seq numbers)
-                  (cons
-                    (bit-xor (first numbers) (first mask-numbers))
-                    (mask (rest numbers) (rest mask-numbers))))))]
+               (lazy-seq (if (seq numbers)
+                           (cons
+                             (bit-xor (first numbers) (first mask-numbers))
+                             (mask (rest numbers) (rest mask-numbers))))))]
     (mask numbers mask-numbers)))
 
 (defn- read-payload [fragment unsigned-byte-seq]
