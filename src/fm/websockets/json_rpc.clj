@@ -106,15 +106,24 @@
       (debug "Skipped message.")
       connection)))
 
+(defn- run-dispatch-loop [request-dispatcher [message connection]]
+  (if message
+    (recur
+      request-dispatcher
+      (take-message
+        (dispatch-request
+          connection
+          request-dispatcher
+          message)))
+    connection))
+
 (defn- dispatch-requests [connection request-dispatcher]
-  (loop [[message connection] (take-message connection)]
-    (if message
-      (recur (take-message
-               (dispatch-request
-                 connection
-                 request-dispatcher
-                 message)))
-      connection)))
+  ;; IMPORTANT: The dispatch loop is executed in a separate function that
+  ;;            invokes itself recursively. Using a "loop"-form does not
+  ;;            work here, because the initial binding keeps a reference
+  ;;            to the connection with all messages but the first, preventing
+  ;;            old messages from being gc'ed properly!
+  (run-dispatch-loop request-dispatcher (take-message connection)))
 
 (defn connection-handler [request-dispatcher]
   (fn [connection]
