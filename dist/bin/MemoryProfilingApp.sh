@@ -9,7 +9,7 @@ fi
 
 SCRIPT_HOME=`dirname $SCRIPT_HOME`
 
-java -server -Xms40m -Xmx40m -cp "${SCRIPT_HOME}/../lib/*" \
+java -server -Xms25m -Xmx25m -cp "${SCRIPT_HOME}/../lib/*" \
 -Djava.util.logging.config.file="${SCRIPT_HOME}/../config/MemoryProfilingApp.logging.properties" \
 fm.websockets.samples.memprof.MemoryProfilingApp $*
 
