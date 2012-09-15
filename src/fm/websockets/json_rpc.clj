@@ -9,7 +9,8 @@
     [fm.core.bytes :only (signed-byte)]
     [fm.core.hyphenate :only (hyphenate)]
     [fm.websockets.protocol :only (text-message? message-content)]
-    [fm.websockets.connection :only (send take-message)])
+    [fm.websockets.connection :only (send)]
+    [fm.websockets.connection-handlers :only (message-processor)])
   (:import
     (java.util UUID)))
 
@@ -106,24 +107,15 @@
       (debug "Skipped message.")
       connection)))
 
-(defn- run-dispatch-loop [request-dispatcher [message connection]]
-  (if message
-    (recur
-      request-dispatcher
-      (take-message
-        (dispatch-request
-          connection
-          request-dispatcher
-          message)))
-    connection))
+(defn- message-handler [request-dispatcher]
+  (fn [connection message]
+    (debug "Handle next message...")
+    (let [connection (dispatch-request connection request-dispatcher message)]
+      (debug "...done.")
+      connection)))
 
 (defn- dispatch-requests [connection request-dispatcher]
-  ;; IMPORTANT: The dispatch loop is executed in a separate function that
-  ;;            invokes itself recursively. Using a "loop"-form does not
-  ;;            work here, because the initial binding keeps a reference
-  ;;            to the connection with all messages but the first, preventing
-  ;;            old messages from being gc'ed properly!
-  (run-dispatch-loop request-dispatcher (take-message connection)))
+  ((message-processor (message-handler request-dispatcher)) connection))
 
 (defn connection-handler [request-dispatcher]
   (fn [connection]
