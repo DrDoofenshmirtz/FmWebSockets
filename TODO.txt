@@ -1,5 +1,10 @@
+- validate WebSocket connect requests
+  (1) check if not empty (may happen due to firefox 15 bug: ff15 sends two
+      connect requests whenever a websocket is created, the second being empty!)
+  (2) check for validity of service name, etc.: can be done in individual connection
+      handlers.
+- implement ping/pong
 - profile memory consumption (messages...)
 - document json rpc api
 - polish and pack the api
-- implement ping/pong
-- validate WebSocket connect requests (service name, etc.) -> can be done in connection handlers! -> sample!
+
