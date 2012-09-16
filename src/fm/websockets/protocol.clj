@@ -49,14 +49,15 @@
                           ByteArrayInputStream.
                           InputStreamReader.
                           BufferedReader.
-                          line-seq)]
-        request-lines (filter #(> (.length (.trim %)) 0) request-lines)
-    {:request-line (first request-lines)
-     :request-headers (parse-request-headers (rest request-lines))}))
+                          line-seq)
+        request-lines (filter #(> (.length (.trim %)) 0) request-lines)]
+    (if (seq request-lines)
+      {:request-line (first request-lines)
+       :request-headers (parse-request-headers (rest request-lines))})))
 
 (defn read-connect-request [unsigned-byte-seq]
-  (let [[request-bytes tail]
-        (split-after-tail '(13 10 13 10) unsigned-byte-seq)]
+  (let [[request-bytes tail] (split-after-tail
+                               '(13 10 13 10) unsigned-byte-seq)]
     [(parse-connect-request request-bytes) tail]))
 
 (defn- sec-ws-accept [sec-ws-key]
