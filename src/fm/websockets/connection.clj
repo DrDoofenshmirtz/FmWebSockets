@@ -29,19 +29,27 @@
   Returns a map {:request {:request-line connect-request-line
                            :request-headers connect-request-headers}
                  :messages lazy-seq-of-incoming-messages
-                 :output   guarded-access-to-connection-output}."
+                 :output   guarded-access-to-connection-output}
+  if the connection has been successfully established, nil otherwise."
   [socket]
   (let [input-stream (.getInputStream socket)
         output-stream (.getOutputStream socket)
         byte-seq (unsigned-byte-seq input-stream)
         [connect-request byte-seq] (read-connect-request byte-seq)]
-    (debug (format
-             "Connecting to WebSocket client (remote address: %s)..."
-             (.getRemoteSocketAddress socket)))
-    (debug (format "Request: %s" connect-request))
-    (write-connect-response output-stream connect-request)
-    (debug "Connected to WebSocket client.")
-    (make-connection connect-request byte-seq output-stream)))
+    (if connect-request
+      (do
+        (debug (format
+                 "Connecting to WebSocket client (remote address: %s)..."
+                 (.getRemoteSocketAddress socket)))
+        (debug (format "Request: %s" connect-request))
+        (write-connect-response output-stream connect-request)
+        (debug "Connected to WebSocket client.")
+        (make-connection connect-request byte-seq output-stream))
+      (do
+        (debug (format
+                 "Failed to connect to WebSocket client (remote address: %s)!"
+                 (.getRemoteSocketAddress socket)))
+        nil))))
 
 (defn take-message
   "Takes the next message from the given connection's lazy message sequence.
@@ -60,6 +68,9 @@
 
 (defmethod output ::output [target]
   target)
+
+(defmethod output :default [target]
+  (throw (IllegalArgumentException. "Illegal output target!")))
 
 (defmulti send-content
   "Sends content to an output stream using a send method suitable
