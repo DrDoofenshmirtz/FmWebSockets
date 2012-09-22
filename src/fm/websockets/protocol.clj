@@ -189,8 +189,11 @@
         (throw (IllegalStateException.
                  "Payload is too long for a single fragment!"))))))
 
+(defn- generate-random-bytes [length]
+  (take length (repeatedly #(rand-int 256))))
+
 (defn- generate-mask-bytes []
-  (take 4 (repeatedly #(rand-int 256))))
+  (generate-random-bytes 4))
 
 (defn send-bytes [output-stream bytes opcode-key final-fragment?]
   (let [opcode-value (opcode-values-by-opcode-keys opcode-key)
@@ -214,3 +217,6 @@
 
 (defn send-text-message [output-stream text]
   (send-bytes output-stream (.getBytes text) :text-message true))
+
+(defn send-ping [output-stream]
+  (send-bytes output-stream (generate-random-bytes 64) :ping true))
