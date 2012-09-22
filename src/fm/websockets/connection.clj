@@ -11,6 +11,9 @@
                                    write-connect-response
                                    send-text-message
                                    send-binary-message
+                                   send-ping
+                                   pong?
+                                   message-content
                                    message-seq)]))
 
 (defn- make-output [output-stream]
@@ -84,9 +87,35 @@
 (defmethod send-content (Class/forName "[B") [output-stream content]
   (send-binary-message output-stream content))
 
-(defn send [target content & contents]
+(defn send
   "Sends a collection of contents to the given target.
   The target may be a connection or its ouput."
+  [target content & contents]
   (with-guarded (output target)
     (doseq [content (cons content contents)]
       (send-content % content))))
+
+(defn- next-pong-message [messages ping-content]
+  (some
+    (fn [pong-message]
+      (and
+        (= ping-content (message-content pong-message))
+        pong-message))
+    (filter pong? messages)))
+
+(defn ping
+  "Sends a ping message over the given connection.
+  Awaits and returns the corresponding pong message."
+  [connection]
+  (with-guarded (output connection)
+    (let [ping-content (send-ping %)]
+      (debug (format
+               "Sent ping content: %s. Waiting for pong..."
+               (print-str ping-content)))
+      (let [pong-message (next-pong-message
+                           (:messages connection)
+                           ping-content)]
+        (debug (format
+                 "Received pong content: %s."
+                 (print-str pong-message)))
+        pong-message))))

@@ -10,13 +10,17 @@
     [clojure.contrib.def :only (defvar-)]
     [clojure.contrib.logging :only (debug)]
     [clojure.contrib.command-line :only (with-command-line)]
+    [fm.websockets.connection :only (ping)]
     [fm.websockets.server :only (start-up)]
     [fm.websockets.json-rpc :only (connection-handler ns-dispatcher)]))
 
 (defvar- service-namespace 'fm.websockets.samples.memprof.memory-profiling-service)
 
 (defn- make-connection-handler []
-  (connection-handler (ns-dispatcher service-namespace)))
+  (let [connection-handler (connection-handler (ns-dispatcher service-namespace))]
+    (fn [connection]
+      (ping connection)
+      (connection-handler connection))))
 
 (defn -main [& args]
   (with-command-line args

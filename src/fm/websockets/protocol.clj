@@ -7,6 +7,7 @@
     [fm.core.lazy-seqs :only (split-after split-after-tail)]
     [fm.core.bytes :only (signed-byte number<-bytes number->bytes)])
   (:import
+    (java.util UUID)
     (java.io ByteArrayInputStream InputStreamReader BufferedReader
              OutputStreamWriter BufferedWriter)
     (org.apache.commons.codec.digest DigestUtils)
@@ -162,6 +163,9 @@
 (defn text-message? [message]
   (= :text-message (opcode message)))
 
+(defn pong? [message]
+  (= :pong (opcode message)))
+
 (defn payload-bytes [message]
   (if (seq message)
     (lazy-cat
@@ -170,11 +174,11 @@
 
 (defmulti message-content opcode)
 
-(defmethod message-content :binary-message [message]
-  (payload-bytes message))
-
 (defmethod message-content :text-message [message]
   (-> (map signed-byte (payload-bytes message)) byte-array String.))
+
+(defmethod message-content :default [message]
+  (payload-bytes message))
 
 (defn- payload-length [length]
   (if (<= length 125)
@@ -219,4 +223,6 @@
   (send-bytes output-stream (.getBytes text) :text-message true))
 
 (defn send-ping [output-stream]
-  (send-bytes output-stream (generate-random-bytes 64) :ping true))
+  (let [ping-bytes (seq (.getBytes (str (UUID/randomUUID))))]
+    (send-bytes output-stream ping-bytes :ping true)
+    ping-bytes))
