@@ -8,7 +8,7 @@
     [clojure.contrib.json :only (json-str read-json)]
     [fm.core.bytes :only (signed-byte)]
     [fm.core.hyphenate :only (hyphenate)]
-    [fm.websockets.protocol :only (text-message? message-content)]
+    [fm.websockets.protocol :only (opcode text-message? message-content)]
     [fm.websockets.connection :only (send)]
     [fm.websockets.connection-handlers :only (message-processor)])
   (:import
@@ -104,7 +104,7 @@
         (debug "...done.")
         connection))
     (do
-      (debug "Skipped message.")
+      (debug (format "Skipped message {opcode: %s}." (opcode message)))
       connection)))
 
 (defn- message-handler [request-dispatcher]
