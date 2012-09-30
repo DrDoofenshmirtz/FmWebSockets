@@ -41,14 +41,27 @@
     (if-let [byte-seq (byte-seq socket input-stream)]
       [byte-seq output-stream])))
 
-(defn- make-output [output-stream]
-  (vary-meta (guarded-access output-stream) assoc :type ::output))
+(defn- output-accessor [socket accessor]
+  (fn [& args]
+    (try
+      (apply accessor args)
+      (catch Exception x
+        (if-not (.isClosed socket)
+          (throw x))))))
 
-(defn- make-connection [connect-request byte-seq output-stream]
+(defn- guarded-output [socket output-stream]
+  (let [guarded-output (guarded-access output-stream)]
+    (fn [accessor & args]
+      (apply guarded-output (output-accessor socket accessor) args))))
+
+(defn- make-output [socket output-stream]
+  (vary-meta (guarded-output socket output-stream) assoc :type ::output))
+
+(defn- make-connection [connect-request byte-seq socket output-stream]
   (vary-meta
     {:request connect-request
      :messages (message-seq byte-seq)
-     :output (make-output output-stream)}
+     :output (make-output socket output-stream)}
     assoc :type ::connection))
 
 (defn connect
@@ -70,7 +83,7 @@
         (debug (format "Request: %s" connect-request))
         (write-connect-response output-stream connect-request)
         (debug "Connected to WebSocket client.")
-        (make-connection connect-request byte-seq output-stream))
+        (make-connection connect-request byte-seq socket output-stream))
       (do
         (debug (format
                  "Failed to connect to WebSocket client (remote address: %s)!"
