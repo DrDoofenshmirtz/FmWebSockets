@@ -16,6 +16,31 @@
                                    message-content
                                    message-seq)]))
 
+(defn- socket-streams [socket]
+  (try
+    [(.getInputStream socket) (.getOutputStream socket)]
+    (catch Exception x
+      (if-not (.isClosed socket)
+        (throw x)))))
+
+(defn- byte-seq [socket input-stream]
+  (letfn [(read-bytes [byte-seq]
+            (lazy-seq
+              (try
+                (if (seq byte-seq)
+                  (cons
+                    (first byte-seq)
+                    (read-bytes (rest byte-seq))))
+                (catch Exception x
+                  (if-not (.isClosed socket)
+                    (throw x))))))]
+    (read-bytes (unsigned-byte-seq input-stream))))
+
+(defn- socket-io [socket]
+  (if-let [[input-stream output-stream] (socket-streams socket)]
+    (if-let [byte-seq (byte-seq socket input-stream)]
+      [byte-seq output-stream])))
+
 (defn- make-output [output-stream]
   (vary-meta (guarded-access output-stream) assoc :type ::output))
 
@@ -35,9 +60,7 @@
                  :output   guarded-access-to-connection-output}
   if the connection has been successfully established, nil otherwise."
   [socket]
-  (let [input-stream (.getInputStream socket)
-        output-stream (.getOutputStream socket)
-        byte-seq (unsigned-byte-seq input-stream)
+  (let [[byte-seq output-stream] (socket-io socket)
         [connect-request byte-seq] (read-connect-request byte-seq)]
     (if connect-request
       (do

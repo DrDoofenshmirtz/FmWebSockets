@@ -1,3 +1,4 @@
+- what happens if a connections socket (server) is shut down?
 - validate WebSocket connect requests:
   check for validity of service name, etc.: can be done in individual connection handlers.
 - implement handling for client-to-server pings (asynchronous scan of messages for ping...)
