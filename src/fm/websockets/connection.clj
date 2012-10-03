@@ -131,27 +131,27 @@
     (doseq [content (cons content contents)]
       (send-content % content))))
 
-(defn- next-pong-message [messages ping-content]
-  (some
-    (fn [pong-message]
-      (and
-        (= ping-content (message-content pong-message))
-        pong-message))
-    (filter pong? messages)))
+(defn- pong-for? [ping-content message]
+  (and (pong? message) (= ping-content (message-content message))))
 
 (defn ping
-  "Sends a ping message over the given connection.
-  Awaits and returns the corresponding pong message."
+  "Sends a ping message over the given connection and awaits the corresponding
+  pong message.
+  Returns a collection of [pong-message connection-with-remaining-messages]."
   [connection]
-  (with-guarded (output connection)
-    (let [ping-content (send-ping %)]
+  (let [ping-content (with-guarded (output connection) (send-ping %))]
+    (debug (format
+             "Sent ping content: %s. Waiting for pong..."
+             (print-str ping-content)))
+    ; We don't use destructuring bind [pong-message & messages] here, because
+    ; it is not lazy enough and might cause the calling thread to block until
+    ; more messages become available.
+    (let [messages (drop-while
+                     (complement (partial pong-for? ping-content))
+                     (:messages connection))
+          pong-message (first messages)
+          messages (rest messages)]
       (debug (format
-               "Sent ping content: %s. Waiting for pong..."
-               (print-str ping-content)))
-      (let [pong-message (next-pong-message
-                           (:messages connection)
-                           ping-content)]
-        (debug (format
-                 "Received pong content: %s."
-                 (print-str pong-message)))
-        pong-message))))
+               "Received pong content: %s."
+               (print-str pong-message)))
+      [pong-message (assoc connection :messages messages)])))
