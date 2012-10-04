@@ -7,7 +7,8 @@
                  [fm.jakarta-commons/commons-codec "1.6"]
                  [fm/fm-core "1.0.3"]]
   :aot [fm.websockets.samples.counter.counter-app
-        fm.websockets.samples.memprof.memory-profiling-app]
+        fm.websockets.samples.memprof.memory-profiling-app
+        fm.websockets.samples.fileupload.file-upload-app]
   :disable-deps-clean true    
   :repositories {"fm-local" ~local-repo-path}
   :jar-name "fm-websockets.jar"
