@@ -17,7 +17,7 @@
 (defn send-object [target object]
   (send target (json-str object)))
 
-(defn send-response [target id result]
+(defn send-result [target id result]
   (send-object target {:id id :result result :error nil}))
 
 (defn send-error [target id error]
@@ -105,23 +105,30 @@
                    {:result return-value :error nil})]
     (with-meta (assoc response :id id) {:type ::response})))
 
-(defn- dispatch-message [connection request-handler message]
-  (if-let [{:keys [id method params]} (read-request message)]
-    (do
-      (debug (format
-               "Dispatch request {id: %s, method: %s, params: %s}..."
-               id method params))
-      (check-request-id (:id connection) id)
-      (let [result (try
-                     (result
-                       connection
-                       (request-handler connection method params))
-                     (catch Throwable error (result connection error true)))]
-        (debug (format "...done. Return value: %s." (:return-value result)))
-        (debug "Send response...")
-        (send-object connection (response id result))
-        (debug "...done.")
-        result))
+(defn- dispatch-request [connection request-handler request]
+  (let [{:keys [id method params]} request]
+    (debug (format
+             "Dispatch request {id: %s, method: %s, params: %s}..."
+             id method params))
+    (check-request-id (:id connection) id)
+    (let [result (try
+                   (result
+                     connection
+                     (request-handler connection method params))
+                   (catch Throwable error (result connection error true)))]
+      (debug (format "...done. Return value: %s." (:return-value result)))
+      result)))
+
+(defn- send-response [connection response]
+  (debug "Send response...")
+  (send-object connection response)
+  (debug "...done."))
+
+(defn- process-message [connection request-handler message]
+  (if-let [{:keys [id] :as request} (read-request message)]
+    (let [result (dispatch-request connection request-handler request)]
+      (send-response connection (response id result))
+      result)
     (do
       (debug (format "Skipped message {opcode: %s}." (opcode message)))
       (make-result connection))))
@@ -130,11 +137,11 @@
   (fn [connection message]
     (debug "Handle next message...")
     (let [{connection :connection}
-          (dispatch-message connection request-handler message)]
+          (process-message connection request-handler message)]
       (debug "...done.")
       connection)))
 
-(defn- dispatch-messages [connection request-handler]
+(defn- process-messages [connection request-handler]
   ((message-processor (message-handler request-handler)) connection))
 
 (defn connection-handler [request-handler]
@@ -145,16 +152,17 @@
     (let [connection (-> connection
                          sign-connection
                          acknowledge-connection
-                         (dispatch-messages request-handler))]
+                         (process-messages request-handler))]
       (debug (format "JSON RPC connection closed: %s." connection)))))
 
-(defn dispatch-request [connection request-handler]
-  (let [[message connection] (take-message connection)]
-    (if message
-      (let [result (dispatch-message connection request-handler message)]
-        (if (complete? result)
-          result
-          (recur (:connection result) request-handler))))))
+(defn process-request
+  ([connection request-handler result-conversion]
+    (let [[message connection] (take-message connection)]
+      (if message
+        (let [result (process-message connection request-handler message)]
+          (if (complete? result)
+            result
+            (recur (:connection result) request-handler)))))))
 
 (defn map-dispatcher [dispatch-map procedure-name-conversion]
   (fn [connection method params]
