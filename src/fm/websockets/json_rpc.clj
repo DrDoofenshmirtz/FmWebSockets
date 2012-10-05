@@ -9,7 +9,7 @@
     [fm.core.bytes :only (signed-byte)]
     [fm.core.hyphenate :only (hyphenate)]
     [fm.websockets.protocol :only (opcode text-message? message-content)]
-    [fm.websockets.connection :only (send)]
+    [fm.websockets.connection :only (take-message send)]
     [fm.websockets.connection-handlers :only (message-processor)])
   (:import
     (java.util UUID)))
@@ -72,20 +72,40 @@
   (let [[return-value error?] args]
     (result connection (if error? false true) error?)))
 
-(defmethod result :default [connection & args]
-  (let [[return-value error?] args]
+(defn- make-result
+  ([connection]
     (with-meta
-      [connection return-value (if error? true false)]
+      {:connection connection
+       :error? false}
+      {:type ::result}))
+  ([connection return-value]
+    (with-meta
+      {:connection connection
+       :return-value return-value
+       :error? false}
+      {:type ::result}))
+  ([connection return-value error?]
+    (with-meta
+      {:connection connection
+       :return-value return-value
+       :error? (if error? true false)}
       {:type ::result})))
 
+(defn- complete? [result]
+  (contains? result :return-value))
+
+(defmethod result :default [connection & args]
+  (let [[return-value error?] args]
+    (make-result connection return-value error?)))
+
 (defn- response [id result]
-  (let [[connection return-value error?] result
+  (let [{:keys [return-value error?]} result
         response (if error?
                    {:result nil :error return-value}
                    {:result return-value :error nil})]
     (with-meta (assoc response :id id) {:type ::response})))
 
-(defn- dispatch-request [connection request-dispatcher message]
+(defn- dispatch-message [connection request-handler message]
   (if-let [{:keys [id method params]} (read-request message)]
     (do
       (debug (format
@@ -95,29 +115,29 @@
       (let [result (try
                      (result
                        connection
-                       (request-dispatcher connection method params))
-                     (catch Throwable error (result connection error true)))
-            [connection return-value] result]
-        (debug (format "...done. Return value: %s." return-value))
+                       (request-handler connection method params))
+                     (catch Throwable error (result connection error true)))]
+        (debug (format "...done. Return value: %s." (:return-value result)))
         (debug "Send response...")
         (send-object connection (response id result))
         (debug "...done.")
-        connection))
+        result))
     (do
       (debug (format "Skipped message {opcode: %s}." (opcode message)))
-      connection)))
+      (make-result connection))))
 
-(defn- message-handler [request-dispatcher]
+(defn- message-handler [request-handler]
   (fn [connection message]
     (debug "Handle next message...")
-    (let [connection (dispatch-request connection request-dispatcher message)]
+    (let [{connection :connection}
+          (dispatch-message connection request-handler message)]
       (debug "...done.")
       connection)))
 
-(defn- dispatch-requests [connection request-dispatcher]
-  ((message-processor (message-handler request-dispatcher)) connection))
+(defn- dispatch-messages [connection request-handler]
+  ((message-processor (message-handler request-handler)) connection))
 
-(defn connection-handler [request-dispatcher]
+(defn connection-handler [request-handler]
   (fn [connection]
     (debug "JSON RPC connection established.")
     (debug (format "Request: %s" (:request connection)))
@@ -125,17 +145,28 @@
     (let [connection (-> connection
                          sign-connection
                          acknowledge-connection
-                         (dispatch-requests request-dispatcher))]
+                         (dispatch-messages request-handler))]
       (debug (format "JSON RPC connection closed: %s." connection)))))
+
+(defn dispatch-request [connection request-handler]
+  (let [[message connection] (take-message connection)]
+    (if message
+      (let [result (dispatch-message connection request-handler message)]
+        (if (complete? result)
+          result
+          (recur (:connection result) request-handler))))))
+
+(defn map-dispatcher [dispatch-map procedure-name-conversion]
+  (fn [connection method params]
+    (let [procedure-name (procedure-name-conversion method)]
+      (if-let [procedure (dispatch-map procedure-name)]
+        (apply procedure connection params)
+        (let [error-message (format
+                              "Undefined procedure: '%s'!"
+                              procedure-name)]
+          (fatal error-message)
+          (throw (IllegalArgumentException. error-message)))))))
 
 (defn ns-dispatcher [ns-name]
   (require ns-name)
-  (fn [connection method params]
-    (let [procedure-name (symbol (hyphenate method))]
-      (if-let [procedure ((ns-interns ns-name) procedure-name)]
-        (apply procedure connection params)
-        (let [error-message (format
-                              "Undefined procedure: '%s' in namespace '%s'!"
-                              procedure-name ns-name)]
-          (fatal error-message)
-          (throw (IllegalArgumentException. error-message)))))))
+  (map-dispatcher (ns-interns ns-name) #(symbol (hyphenate %))))
