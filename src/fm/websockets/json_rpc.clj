@@ -9,7 +9,7 @@
     [fm.core.bytes :only (signed-byte)]
     [fm.core.hyphenate :only (hyphenate)]
     [fm.websockets.protocol :only (opcode text-message? message-content)]
-    [fm.websockets.connection :only (take-message send)]
+    [fm.websockets.connection :only (send)]
     [fm.websockets.connection-handlers :only (message-processor)])
   (:import
     (java.util UUID)))
@@ -154,14 +154,6 @@
                          acknowledge-connection
                          (process-messages request-handler))]
       (debug (format "JSON RPC connection closed: %s." connection)))))
-
-(defn process-request [connection request-handler]
-  (let [[message connection] (take-message connection)]
-    (if message
-      (let [result (process-message connection request-handler message)]
-        (if (complete? result)
-          result
-          (recur (:connection result) request-handler))))))
 
 (defn map-dispatcher [dispatch-map procedure-name-conversion]
   (fn [connection method params]
