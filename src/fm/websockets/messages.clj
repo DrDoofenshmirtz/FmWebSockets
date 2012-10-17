@@ -1,7 +1,7 @@
 (ns
-  ^{:doc "Utilities for creating connection handlers."
+  ^{:doc "Utilities for processing the messages produced by a connection."
     :author "Frank Mosebach"}
-  fm.websockets.connection-handlers
+  fm.websockets.messages
   (:use
     [fm.websockets.connection :only (take-message)]))
 
@@ -14,11 +14,12 @@
         connection))))
 
 (defn message-processor
-  "Creates a connection handler that dipatches incoming messages to a
-  message handler.
-  A message handler is a function of two arguments that will be invoked
-  with the connection as its first and the next incoming message as its
-  second argument.
+  "Creates a connection handler, i. e. a function of one argument accepting a
+  connection, that dipatches the messages being produced by the connection to
+  the given message handler.
+  A message handler is a function of two arguments that will be invoked with
+  the connection as its first and the next incoming message as its second
+  argument.
   The message handler is expected to return the (resulting state of) the
   connection."
   [message-handler]
