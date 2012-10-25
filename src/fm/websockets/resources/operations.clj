@@ -4,14 +4,18 @@
   fm.websockets.resources.operations
   (:refer-clojure :exclude [remove]))
 
+(def ^{:private true
+       :doc "Functions to be used as default values if the respective resource
+             management function is not given when a resource is submitted."}
+     default-functions {:on-event (fn [id event resource] resource)
+                        :expired? (constantly false)
+                        :close!   (constantly nil)})
+
 (defn manage [{:keys [good expired] :or {expired []} :as resources}
-              key resource &
-              {:keys [on-event expired? close!]
-               :or   {on-event (fn [id event resource] resource)
-                      expired? (constantly false)
-                      close!   (constantly nil)}}]
+              key resource & {:keys [on-event expired? close!] :as funcs}]
   (assert resource)
-  (let [replaced (get good key)
+  (let [funcs    (merge default-functions funcs)
+        replaced (get good key)
         good     (assoc good key {:resource resource
                                   :on-event on-event
                                   :expired? expired?
@@ -36,7 +40,7 @@
     [key (assoc managed :resource (apply update resource args))]
     managed))
 
-(defn update [{:keys [good expired] :as resources} &
+(defn update [{:keys [good expired] :or {expired []} :as resources} &
               {:keys [keys update args]}]
   (assert update)
   (update-entries resources keys #(update-resource % update args)))
@@ -44,7 +48,7 @@
 (defn- process-event [[key {:keys [resource on-event] :as managed}] id event]
   [key (assoc managed :resource (on-event resource))])
 
-(defn send-event [{:keys [good expired] :as resources} &
+(defn send-event [{:keys [good expired] :or {expired []} :as resources} &
                   {:keys [keys id event]}]
   (assert id)
   (assert event)
@@ -53,7 +57,7 @@
 (defn remove
   ([resources]
     (remove resources nil))
-  ([{:keys [good expired] :as resources} keys]
+  ([{:keys [good expired] :or {expired []} :as resources} keys]
     (let [good    (apply dissoc good keys)
           expired (into expired (select-keys good keys))]
       (assoc resources :good good :expired expired))))
@@ -62,4 +66,4 @@
   (io!
     (doseq [[key {:keys [resource close!]}] expired]
       (close! resource))
-    (assoc resources :expired (empty expired))))
+    (dissoc resources :expired)))
