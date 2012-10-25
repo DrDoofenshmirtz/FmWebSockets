@@ -2,7 +2,8 @@
   ^{:doc "Types for resource (lifecycle) management."
     :author "Frank Mosebach"}
   fm.websockets.resources.types
-  (:require [fm.websockets.resources.operations :as ops]))
+  (:require
+    [fm.websockets.resources.operations :as ops]))
 
 (defprotocol ResourceStorage
   "Defines the contract for a place where resources can be stored."
