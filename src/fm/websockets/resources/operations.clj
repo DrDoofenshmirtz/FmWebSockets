@@ -6,7 +6,7 @@
 
 (def ^{:private true
        :doc "Functions to be used as default values if the respective resource
-             management function is not given when a resource is submitted."}
+            management function is not given when a resource is submitted."}
      default-functions {:on-event (fn [id event resource] resource)
                         :expired? (constantly false)
                         :close!   (constantly nil)})
@@ -16,10 +16,7 @@
   (assert resource)
   (let [funcs    (merge default-functions funcs)
         replaced (get good key)
-        good     (assoc good key {:resource resource
-                                  :on-event on-event
-                                  :expired? expired?
-                                  :close!   close!})
+        good     (assoc good key (assoc funcs :resource resource))
         expired  (if replaced (conj expired [key replaced]) expired)]
     (assoc resources :good good :expired expired)))
 
@@ -67,3 +64,9 @@
     (doseq [[key {:keys [resource close!]}] expired]
       (close! resource))
     (dissoc resources :expired)))
+
+(defn resources [{:keys [good expired]}]
+  (reduce conj {} (map
+                    (fn [[key {resource :resource}]]
+                      [key resource])
+                    good)))

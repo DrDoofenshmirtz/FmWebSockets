@@ -2,18 +2,26 @@
   ^{:doc "Types for resource (lifecycle) management."
     :author "Frank Mosebach"}
   fm.websockets.resources.types
-  (:use [fm.websockets.resources.operations :only (clean-up!)]))
+  (:require [fm.websockets.resources.operations :as ops]))
 
 (defprotocol ResourceStorage
-  (update! [this update])
-  (resources [this]))
+  "Defines the contract for a place where resources can be stored."
+  (update! [this update]
+    "Updates the currently stored resources through application of
+    the given update function.")
+  (resource [this key]
+    "Returns the resource that is stored under the given key.")
+  (resources [this]
+    "Returns (a snapshot of) the currenly stored resources."))
 
 (extend-protocol ResourceStorage
   clojure.lang.Ref
   (update! [this update]
-    (clean-up! (dosync
-                 (let [{:keys [good expired] :as resources} (update @this)]
-                   (ref-set this (assoc resources :expired (empty expired)))
-                   resources))))
+    (dosync
+      (let [{good :good :as resources} (update {:good @this})]
+        (ref-set this good)
+        resources)))
+  (resource [this key]
+    (:resource (get @this key)))
   (resources [this]
-    (:good @this)))
+    (ops/resources {:good @this})))
