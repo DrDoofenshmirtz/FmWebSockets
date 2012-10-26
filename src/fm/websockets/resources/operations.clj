@@ -64,9 +64,3 @@
     (doseq [[key {:keys [resource close!]}] expired]
       (close! resource))
     (dissoc resources :expired)))
-
-(defn resources [{:keys [good expired]}]
-  (reduce conj {} (map
-                    (fn [[key {resource :resource}]]
-                      [key resource])
-                    good)))
