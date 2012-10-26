@@ -2,13 +2,13 @@
   ^{:doc "API for resource storage access and manipulation."
     :author "Frank Mosebach"}
   fm.websockets.resources.storage
-  (:use
-    [fm.websockets.resources.operations :only (manage clean-up!)]
-    [fm.websockets.resources.types :only (ResourceStorage update! contents)]))
+  (:require
+    [fm.websockets.resources.operations :as ops]
+    [fm.websockets.resources.types :as types]))
 
 (defn ref-storage []
   (let [storage (ref nil)]
-    (reify ResourceStorage
+    (reify types/ResourceStorage
       (update! [this update]
         (dosync
           (let [{good :good :as resources} (update {:good @storage})]
@@ -18,12 +18,14 @@
         @storage))))
 
 (defn manage! [storage key resource & more]
-  (-> (update! storage #(apply manage % key resource more))
-      clean-up!
+  (-> (types/update! storage #(apply ops/manage % key resource more))
+      ops/clean-up!
       :good))
 
-(defn resources [storage & kees]
-  (let [contents (contents storage)
-        kees     (or (seq kees) (keys contents))]
-    (map #(:resource (get contents %)) kees)))
-
+(defn resource
+  ([storage key]
+    (resource storage key nil))
+  ([storage key default]
+    (if-let [{resource :resource} (get (types/contents storage) key)]
+      resource
+      default)))
