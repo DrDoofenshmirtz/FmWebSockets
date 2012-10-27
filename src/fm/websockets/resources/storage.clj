@@ -28,9 +28,7 @@
       :good))
 
 (defn sweep! [storage]
-  (-> (types/update! storage #(ops/update % :update identity))
-      ops/clean-up!
-      :good))
+  (update! storage :update identity))
 
 (defn- mark-as-expired [{:keys [good expired] :or {expired []} :as resources}]
   (assoc resources :good (empty good) :expired (into expired good)))
