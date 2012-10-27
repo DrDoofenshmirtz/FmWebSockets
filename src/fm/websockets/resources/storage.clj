@@ -17,8 +17,26 @@
       (contents [this]
         @storage))))
 
-(defn manage! [storage key resource & more]
-  (-> (types/update! storage #(apply ops/manage % key resource more))
+(defn manage! [storage key resource & kwargs]
+  (-> (types/update! storage #(apply ops/manage % key resource kwargs))
+      ops/clean-up!
+      :good))
+
+(defn update! [storage & kwargs]
+  (-> (types/update! storage #(apply ops/update % kwargs))
+      ops/clean-up!
+      :good))
+
+(defn sweep! [storage]
+  (-> (types/update! storage #(ops/update % :update identity))
+      ops/clean-up!
+      :good))
+
+(defn- mark-as-expired [{:keys [good expired] :or {expired []} :as resources}]
+  (assoc resources :good (empty good) :expired (into expired good)))
+
+(defn clear! [storage]
+  (-> (types/update! storage mark-as-expired)
       ops/clean-up!
       :good))
 
