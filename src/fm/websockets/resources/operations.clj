@@ -27,6 +27,7 @@
   (if update
     (let [kees    (or (seq kees) (keys good))
           entries (map update (select-keys good kees))
+          good    (apply dissoc good kees)
           good    (into good (filter (complement expired?) entries))
           expired (into expired (filter expired? entries))]
       (assoc resources :good good :expired expired))
