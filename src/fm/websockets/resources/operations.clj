@@ -23,6 +23,7 @@
 (defn- expired? [[key {:keys [resource expired?]}]]
   (expired? resource))
 
+;; TODO: optimize this! (too many operations on "good"...)
 (defn- update-entries [{:keys [good expired] :as resources} kees update]
   (if update
     (let [kees    (or (seq kees) (keys good))
@@ -44,7 +45,7 @@
   (update-entries resources keys #(update-resource % update args)))
 
 (defn- process-event [[key {:keys [resource on-event] :as managed}] id event]
-  [key (assoc managed :resource (on-event resource))])
+  [key (assoc managed :resource (on-event id event resource))])
 
 (defn send-event [{:keys [good expired] :or {expired []} :as resources} &
                   {:keys [keys id event]}]
