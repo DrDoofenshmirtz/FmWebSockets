@@ -27,14 +27,23 @@
       ops/clean-up!
       :good))
 
+(defn send! [storage id event & keys]
+  (-> (types/update! storage #(ops/send-event % :id    id
+                                                :event event
+                                                :keys  keys))
+      ops/clean-up!
+      :good))
+
+(defn remove! [storage key & keys]
+  (-> (types/update! storage #(ops/remove % (cons key keys)))
+      ops/clean-up!
+      :good))
+
 (defn sweep! [storage]
   (update! storage :update identity))
 
-(defn- mark-as-expired [{:keys [good expired] :or {expired []} :as resources}]
-  (assoc resources :good (empty good) :expired (into expired good)))
-
 (defn clear! [storage]
-  (-> (types/update! storage mark-as-expired)
+  (-> (types/update! storage #(ops/remove %))
       ops/clean-up!
       :good))
 
