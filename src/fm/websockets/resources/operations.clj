@@ -23,15 +23,20 @@
 (defn- expired? [[key {:keys [resource expired?]}]]
   (expired? resource))
 
-;; TODO: optimize this! (too many operations on "good"...)
-(defn- update-entries [{:keys [good expired] :as resources} kees update]
+(defn- update-entries [{good :good :as resources} kees update]
   (if update
-    (let [kees    (or (seq kees) (keys good))
-          entries (map update (select-keys good kees))
-          good    (apply dissoc good kees)
-          good    (into good (filter (complement expired?) entries))
-          expired (into expired (filter expired? entries))]
-      (assoc resources :good good :expired expired))
+    (reduce
+      (fn [{:keys [good expired] :as resources} key]
+        (if-let [managed (get good key)]
+          (if-let [updated (update [key managed])]
+            (if (expired? updated)
+              (assoc resources :good    (dissoc good key)
+                               :expired (conj expired updated))
+              (assoc resources :good (conj good updated)))
+            resources)
+          resources))
+      resources
+      (or (seq kees) (keys good)))
     resources))
 
 (defn- update-resource [[key {resource :resource :as managed}] update args]
