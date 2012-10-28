@@ -57,9 +57,10 @@
   ([resources]
     (remove resources nil))
   ([{:keys [good expired] :or {expired []} :as resources} keys]
-    (let [good    (apply dissoc good keys)
-          expired (into expired (select-keys good keys))]
-      (assoc resources :good good :expired expired))))
+    (if (seq keys)
+      (assoc resources :good    (apply dissoc good keys)
+                       :expired (into expired (select-keys good keys)))
+      (assoc resources :good (empty good) :expired (into expired good)))))
 
 (defn clean-up! [{expired :expired :as resources}]
   (io!
