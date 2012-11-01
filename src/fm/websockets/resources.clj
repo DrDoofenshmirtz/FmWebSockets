@@ -83,8 +83,7 @@
   (assert connection)
   (send! (resource-storage connection)
          ::scope-expired
-         {:scope      :connection
-          :connection connection}))
+         {:scope :connection :connection connection}))
 
 (defn application-expired [storage]
   (assert storage)
