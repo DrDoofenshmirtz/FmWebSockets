@@ -73,6 +73,7 @@
   ([connection key]
     (get-resource connection key nil))
   ([connection key default]
+    (assert connection)
     (if-let [scoped-resource (resource (resource-storage connection) key)]
       (::resource scoped-resource)
       default)))
