@@ -9,6 +9,12 @@
 (defn with-resource-storage [connection storage]
   (assoc connection ::storage storage))
 
+(defn resource-storage [connection]
+  (if-let [storage (::storage connection)]
+    storage
+    (throw (IllegalStateException.
+             "Connection does not have a resource storage!"))))
+
 (def ^{:private true} levels-by-scope {:request     0
                                        :connection  1
                                        :application 2})
@@ -51,30 +57,35 @@
 (defn- scoped-resource [resource scope]
   {::resource resource ::scope (or scope :application)})
 
-(defn manage-resource [connection key resource & {:as funcs-and-scope}]
-  (if-let [storage (::storage connection)]
-    (let [resource (scoped-resource resource (:scope funcs-and-scope))
-          funcs    (scoped-resource-funcs (dissoc funcs-and-scope :scope))
-          funcs    (interleave (keys funcs) (vals funcs))]
-      (apply manage! storage key resource funcs))
-    (throw (IllegalStateException.
-             "Connection does not have a resource storage!"))))
+(def ^{:private true} scopes #{:request :connection :application})
+
+(defn manage-resource [connection key resource scope & {:as funcs}]
+  (assert connection)
+  (assert resource)
+  (assert (scopes scope))
+  (let [storage  (resource-storage connection)
+        resource (scoped-resource resource scope)
+        funcs    (scoped-resource-funcs funcs)
+        funcs    (interleave (keys funcs) (vals funcs))]
+    (apply manage! storage key resource funcs)))
 
 (defn request-expired [connection method params]
-  (if-let [storage (::storage connection)]
-    (send! storage ::scope-expired {:scope      :request
-                                    :connection connection
-                                    :method     method
-                                    :params     params})
-    (throw (IllegalStateException.
-             "Connection does not have a resource storage!"))))
+  (assert connection)
+  (assert method)
+  (send! (resource-storage connection)
+         ::scope-expired
+         {:scope      :request
+          :connection connection
+          :method     method
+          :params     params}))
 
 (defn connection-expired [connection]
-  (if-let [storage (::storage connection)]
-    (send! storage ::scope-expired {:scope      :connection
-                                    :connection connection})
-    (throw (IllegalStateException.
-             "Connection does not have a resource storage!"))))
+  (assert connection)
+  (send! (resource-storage connection)
+         ::scope-expired
+         {:scope      :connection
+          :connection connection}))
 
 (defn application-expired [storage]
+  (assert storage)
   (send! storage ::scope-expired {:scope :application}))
