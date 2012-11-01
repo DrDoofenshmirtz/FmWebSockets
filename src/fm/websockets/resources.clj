@@ -96,14 +96,10 @@
       (request-expired connection method params)
       result)))
 
-(defn decorate-connection-handler
-  ([connection-handler]
-    (decorate-connection-handler connection-handler
-                                 (resource-storage connection-handler)))
-  ([connection-handler resource-storage]
-    (assert connection-handler)
-    (fn [connection]
-      (let [connection (with-resource-storage connection resource-storage)
-            result     (connection-handler connection)]
-        (connection-expired connection)
-        result))))
+(defn decorate-connection-handler [connection-handler resource-storage]
+  (assert connection-handler)
+  (fn [connection]
+    (let [connection (with-resource-storage connection resource-storage)
+          result     (connection-handler connection)]
+      (connection-expired connection)
+      result)))
