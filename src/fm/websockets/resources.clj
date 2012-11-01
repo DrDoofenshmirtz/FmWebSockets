@@ -88,3 +88,22 @@
 (defn application-expired [storage]
   (assert storage)
   (send! storage ::scope-expired {:scope :application}))
+
+(defn decorate-request-handler [request-handler]
+  (assert request-handler)
+  (fn [connection method params]
+    (let [result (request-handler connection method params)]
+      (request-expired connection method params)
+      result)))
+
+(defn decorate-connection-handler
+  ([connection-handler]
+    (decorate-connection-handler connection-handler
+                                 (resource-storage connection-handler)))
+  ([connection-handler resource-storage]
+    (assert connection-handler)
+    (fn [connection]
+      (let [connection (with-resource-storage connection resource-storage)
+            result     (connection-handler connection)]
+        (connection-expired connection)
+        result))))
