@@ -11,10 +11,13 @@
                         :expired? (constantly false)
                         :close!   (constantly nil)})
 
+(defn with-default-functions [funcs]
+  (merge default-functions funcs))
+
 (defn manage [{:keys [good expired] :or {expired []} :as resources}
-              key resource & {:keys [on-event expired? close!] :as funcs}]
+              key resource & {:as funcs}]
   (assert resource)
-  (let [funcs    (merge default-functions funcs)
+  (let [funcs    (with-default-functions funcs)
         replaced (get good key)
         good     (assoc good key (assoc funcs :resource resource))
         expired  (if replaced (conj expired [key replaced]) expired)]
