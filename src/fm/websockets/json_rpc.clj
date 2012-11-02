@@ -153,7 +153,8 @@
                          sign-connection
                          acknowledge-connection
                          (process-messages request-handler))]
-      (debug (format "JSON RPC connection closed: %s." connection)))))
+      (debug (format "JSON RPC connection closed: %s." connection))
+      connection)))
 
 (defn map-dispatcher [dispatch-map procedure-name-conversion]
   (fn [connection method params]
