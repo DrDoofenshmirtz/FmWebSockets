@@ -113,6 +113,6 @@
   (assert connection-handler)
   (fn [connection]
     (let [connection (with-resource-storage connection resource-storage)
-          result     (connection-handler connection)]
+          connection (connection-handler connection)]
       (connection-expired connection)
-      result)))
+      connection)))
