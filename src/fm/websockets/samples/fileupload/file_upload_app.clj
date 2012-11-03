@@ -12,21 +12,41 @@
     [clojure.contrib.command-line :only (with-command-line)]
     [fm.websockets.connection :only (ping)]
     [fm.websockets.server :only (start-up)]
-    [fm.websockets.json-rpc :only (connection-handler ns-dispatcher)]))
+    [fm.websockets.json-rpc :only (connection-handler ns-dispatcher)]
+    [fm.websockets.resources :only (decorate-request-handler
+                                    decorate-connection-handler
+                                    application-expired)]
+    [fm.websockets.resources.storage :only (ref-storage)]))
 
 (defvar- service-namespace 'fm.websockets.samples.fileupload.file-upload-service)
 
+(defvar- resource-storage (ref-storage))
+
 (defn- make-connection-handler []
-  (let [connection-handler (connection-handler (ns-dispatcher service-namespace))]
+  (let [request-handler (ns-dispatcher service-namespace)
+        request-handler (decorate-request-handler request-handler)
+        connection-handler (connection-handler request-handler)
+        connection-handler (decorate-connection-handler connection-handler
+                                                        resource-storage)]
     (fn [connection]
       (ping connection)
       (connection-handler connection))))
+
+(defn- close-resources []
+  (println "Terminating application FileUploadApp...")
+  (application-expired resource-storage)
+  (println "...done. Bye!"))
+
+(defn- close-resources-on-shutdown []
+  (.addShutdownHook (Runtime/getRuntime)
+                    (Thread. close-resources "close-resources-on-shutdown")))
 
 (defn -main [& args]
   (with-command-line args
     "FileUploadApp"
     [[port "The app's server port number" 17500]]
     (debug (format "Starting FileUploadApp server on port %s..." port))
+    (close-resources-on-shutdown)
     (let [port (Integer/parseInt (.trim (str port)) 10)]
       (let [server (start-up port (make-connection-handler))]
         (debug "...done. Waiting for clients...")))))
