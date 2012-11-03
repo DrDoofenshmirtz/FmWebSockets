@@ -4,7 +4,11 @@
   fm.websockets.resources
   (:use
     [fm.websockets.resources.operations :only (with-default-functions)]
-    [fm.websockets.resources.storage :only (manage! send! remove! resource)]))
+    [fm.websockets.resources.storage :only (manage!
+                                            send!
+                                            remove!
+                                            update!
+                                            resource)]))
 
 (defn with-resource-storage [connection storage]
   (assoc connection ::storage storage))
@@ -78,9 +82,18 @@
       (::resource scoped-resource)
       default)))
 
-(defn remove-resource [connection key]
+(defn update-resources [connection update & kwargs]
   (assert connection)
-  (remove! (resource-storage connection) key))
+  (assert update)
+  (let [update (fn [{resource ::resource :as scoped-resource} & args]
+                 (let [resource (apply update resource args)]
+                   (assoc scoped-resource ::resource resource)))]
+    (apply update! (resource-storage connection)
+                   (concat [:update update] kwargs))))
+
+(defn remove-resources [connection key & keys]
+  (assert connection)
+  (apply remove! (resource-storage connection) key keys))
 
 (defn request-expired [connection method params]
   (assert connection)
