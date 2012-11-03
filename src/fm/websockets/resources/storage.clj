@@ -17,35 +17,27 @@
       (contents [this]
         @storage))))
 
+(defn- update-and-clean-up [storage update]
+  (-> (types/update! storage update) ops/clean-up! :good))
+
 (defn manage! [storage key resource & kwargs]
-  (-> (types/update! storage #(apply ops/manage % key resource kwargs))
-      ops/clean-up!
-      :good))
+  (update-and-clean-up storage #(apply ops/manage % key resource kwargs)))
 
 (defn update! [storage & kwargs]
-  (-> (types/update! storage #(apply ops/update % kwargs))
-      ops/clean-up!
-      :good))
+  (update-and-clean-up storage #(apply ops/update % kwargs)))
 
 (defn send! [storage id event & keys]
-  (-> (types/update! storage #(ops/send-event % :id    id
-                                                :event event
-                                                :keys  keys))
-      ops/clean-up!
-      :good))
+  (update-and-clean-up storage
+                       #(ops/send-event % :id id :event event :keys keys)))
 
 (defn remove! [storage key & keys]
-  (-> (types/update! storage #(ops/remove % (cons key keys)))
-      ops/clean-up!
-      :good))
+  (update-and-clean-up storage #(ops/remove % (cons key keys))))
 
 (defn sweep! [storage]
   (update! storage :update identity))
 
 (defn clear! [storage]
-  (-> (types/update! storage #(ops/remove %))
-      ops/clean-up!
-      :good))
+  (update-and-clean-up storage #(ops/remove %)))
 
 (defn resource
   ([storage key]
