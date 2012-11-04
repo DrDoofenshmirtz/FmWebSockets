@@ -16,25 +16,33 @@
     [fm.websockets.resources :only (decorate-request-handler
                                     decorate-connection-handler
                                     application-expired)]
-    [fm.websockets.resources.storage :only (ref-storage)]))
+    [fm.websockets.resources.storage :only (partition-storage)])
+  (:import
+    (java.util UUID)))
 
 (defvar- service-namespace 'fm.websockets.samples.fileupload.file-upload-service)
 
-(defvar- resource-storage (ref-storage))
+(defvar- paritioned-storage (ref nil))
+
+(defn- make-resource-storage [connection]
+  (partition-storage paritioned-storage (str (UUID/randomUUID))))
 
 (defn- make-connection-handler []
-  (let [request-handler (ns-dispatcher service-namespace)
-        request-handler (decorate-request-handler request-handler)
+  (let [request-handler    (ns-dispatcher service-namespace)
+        request-handler    (decorate-request-handler request-handler)
         connection-handler (connection-handler request-handler)
         connection-handler (decorate-connection-handler connection-handler
-                                                        resource-storage)]
+                                                        make-resource-storage)]
     (fn [connection]
       (ping connection)
       (connection-handler connection))))
 
 (defn- close-resources []
   (println "Terminating application FileUploadApp...")
-  (application-expired resource-storage)
+  (doseq [key (keys @paritioned-storage)]
+    (println (format "Closing resources for %s..." key))
+    (application-expired (partition-storage paritioned-storage key))
+    (println "...closed."))
   (println "...done. Bye!"))
 
 (defn- close-resources-on-shutdown []
