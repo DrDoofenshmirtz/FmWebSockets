@@ -17,6 +17,18 @@
       (contents [this]
         @storage))))
 
+(defn partition-storage [ref key]
+  (reify types/ResourceStorage
+    (update! [this update]
+      (dosync
+        (let [{good :good :as resources} (update {:good (get @ref key)})]
+          (if (empty? good)
+            (alter ref dissoc key)
+            (alter ref assoc key good))
+          resources)))
+    (contents [this]
+      (get @ref key))))
+
 (defn- update-and-clean-up [storage update]
   (-> (types/update! storage update) ops/clean-up! :good))
 
