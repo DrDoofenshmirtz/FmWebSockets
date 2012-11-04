@@ -11,6 +11,8 @@
                                             resource)]))
 
 (defn with-resource-storage [connection storage]
+  (assert connection)
+  (assert storage)
   (assoc connection ::storage storage))
 
 (defn resource-storage [connection]
@@ -122,10 +124,12 @@
       (request-expired connection method params)
       result)))
 
-(defn decorate-connection-handler [connection-handler resource-storage]
+(defn decorate-connection-handler [connection-handler storage-constructor]
   (assert connection-handler)
+  (assert storage-constructor)
   (fn [connection]
-    (let [connection (with-resource-storage connection resource-storage)
+    (let [storage    (storage-constructor connection)
+          connection (with-resource-storage connection storage)
           connection (connection-handler connection)]
       (connection-expired connection)
       connection)))
