@@ -48,7 +48,10 @@
 
 (defn- continue-upload [connection upload]
   (let [{:keys [id data]} upload
-        {output :output} (get-resource connection id)]
+        {output :output :as resource} (get-resource connection id)]
+    (if-not resource
+      (throw (IllegalStateException.
+               "Upload failed (resource has been closed)!")))
     (.write output (data-bytes data))
     id))
 
