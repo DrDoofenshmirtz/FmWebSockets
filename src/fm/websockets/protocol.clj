@@ -175,7 +175,7 @@
 (defmulti message-content opcode)
 
 (defmethod message-content :text-message [message]
-  (-> (map signed-byte (payload-bytes message)) byte-array String.))
+  (-> (map signed-byte (payload-bytes message)) byte-array (String. "utf-8")))
 
 (defmethod message-content :default [message]
   (payload-bytes message))
