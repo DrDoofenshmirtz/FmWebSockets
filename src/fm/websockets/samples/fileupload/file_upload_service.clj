@@ -13,7 +13,7 @@
     (java.util UUID)))
 
 (defn- data-bytes [data]
-  (into-array Byte/TYPE (map signed-byte data)))
+  (.getBytes (str data) "ISO-8859-1"))
 
 (defn- on-event [id event resource]
   (debug (format "on-event{id: %s resource: %s}" id resource))
