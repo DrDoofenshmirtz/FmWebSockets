@@ -5,7 +5,7 @@
   :dependencies [[fm.clojure/clojure "1.2.0"]
                  [fm.clojure/clojure-contrib "1.2.0"]
                  [fm.jakarta-commons/commons-codec "1.6"]
-                 [fm/fm-core "1.0.3"]]
+                 [fm/fm-core "1.0.4"]]
   :aot [fm.websockets.samples.counter.counter-app
         fm.websockets.samples.memprof.memory-profiling-app
         fm.websockets.samples.fileupload.file-upload-app
