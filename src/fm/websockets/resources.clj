@@ -10,12 +10,12 @@
                                             update!
                                             resource)]))
 
-(defn with-resource-storage [connection storage]
+(defn with-storage [connection resource-storage]
   (assert connection)
-  (assert storage)
-  (assoc connection ::storage storage))
+  (assert resource-storage)
+  (assoc connection ::storage resource-storage))
 
-(defn resource-storage [connection]
+(defn get-storage [connection]
   (if-let [storage (::storage connection)]
     storage
     (throw (IllegalStateException.
@@ -69,7 +69,7 @@
   (assert connection)
   (assert resource)
   (assert (scopes scope))
-  (let [storage  (resource-storage connection)
+  (let [storage  (get-storage connection)
         resource (scoped-resource resource scope)
         funcs    (scoped-resource-funcs funcs)
         funcs    (interleave (keys funcs) (vals funcs))]
@@ -80,7 +80,7 @@
     (get-resource connection key nil))
   ([connection key default]
     (assert connection)
-    (if-let [scoped-resource (resource (resource-storage connection) key)]
+    (if-let [scoped-resource (resource (get-storage connection) key)]
       (::resource scoped-resource)
       default)))
 
@@ -90,17 +90,17 @@
   (let [update (fn [{resource ::resource :as scoped-resource} & args]
                  (let [resource (apply update resource args)]
                    (assoc scoped-resource ::resource resource)))]
-    (apply update! (resource-storage connection)
+    (apply update! (get-storage connection)
                    (concat [:update update] kwargs))))
 
 (defn remove-resources [connection key & keys]
   (assert connection)
-  (apply remove! (resource-storage connection) key keys))
+  (apply remove! (get-storage connection) key keys))
 
 (defn request-expired [connection method params]
   (assert connection)
   (assert method)
-  (send! (resource-storage connection)
+  (send! (get-storage connection)
          ::scope-expired
          {:scope      :request
           :connection connection
@@ -109,7 +109,7 @@
 
 (defn connection-expired [connection]
   (assert connection)
-  (send! (resource-storage connection)
+  (send! (get-storage connection)
          ::scope-expired
          {:scope :connection :connection connection}))
 
@@ -117,19 +117,19 @@
   (assert storage)
   (send! storage ::scope-expired {:scope :application}))
 
-(defn decorate-request-handler [request-handler]
+(defn request-handler [request-handler]
   (assert request-handler)
   (fn [connection method params]
     (let [result (request-handler connection method params)]
       (request-expired connection method params)
       result)))
 
-(defn decorate-connection-handler [connection-handler storage-constructor]
+(defn connection-handler [connection-handler storage-constructor]
   (assert connection-handler)
   (assert storage-constructor)
   (fn [connection]
     (let [storage    (storage-constructor connection)
-          connection (with-resource-storage connection storage)
+          connection (with-storage connection storage)
           connection (connection-handler connection)]
       (connection-expired connection)
       connection)))

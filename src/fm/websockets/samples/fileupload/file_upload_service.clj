@@ -6,8 +6,7 @@
     [fm.websockets.resources :only (manage-resource
                                     get-resource
                                     remove-resources
-                                    update-resources)]
-    [fm.websockets.resources.storage :only (resource)])
+                                    update-resources)])
   (:import
     (java.io File FileOutputStream)
     (java.util UUID)))

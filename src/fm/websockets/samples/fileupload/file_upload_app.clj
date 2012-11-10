@@ -6,33 +6,32 @@
   (:gen-class
     :name fm.websockets.samples.fileupload.FileUploadApp
     :main true)
+  (:require
+    [fm.websockets.resources :as rscs]
+    [fm.websockets.json-rpc :as jrpc])
   (:use
-    [clojure.contrib.def :only (defvar-)]
     [clojure.contrib.logging :only (debug)]
     [clojure.contrib.command-line :only (with-command-line)]
     [fm.websockets.connection :only (ping)]
     [fm.websockets.server :only (start-up)]
-    [fm.websockets.json-rpc :only (connection-handler ns-dispatcher)]
-    [fm.websockets.resources :only (decorate-request-handler
-                                    decorate-connection-handler
-                                    application-expired)]
     [fm.websockets.resources.storage :only (partition-storage)])
   (:import
     (java.util UUID)))
 
-(defvar- service-namespace 'fm.websockets.samples.fileupload.file-upload-service)
+(def ^{:private true} service-namespace
+                      'fm.websockets.samples.fileupload.file-upload-service)
 
-(defvar- paritioned-storage (ref nil))
+(def ^{:private true} paritioned-storage (ref nil))
 
 (defn- make-resource-storage [connection]
   (partition-storage paritioned-storage (str (UUID/randomUUID))))
 
 (defn- make-connection-handler []
-  (let [request-handler    (ns-dispatcher service-namespace)
-        request-handler    (decorate-request-handler request-handler)
-        connection-handler (connection-handler request-handler)
-        connection-handler (decorate-connection-handler connection-handler
-                                                        make-resource-storage)]
+  (let [request-handler    (jrpc/ns-dispatcher service-namespace)
+        request-handler    (rscs/request-handler request-handler)
+        connection-handler (jrpc/connection-handler request-handler)
+        connection-handler (rscs/connection-handler connection-handler
+                                                    make-resource-storage)]
     (fn [connection]
       (ping connection)
       (connection-handler connection))))
@@ -41,7 +40,7 @@
   (println "Terminating application FileUploadApp...")
   (doseq [key (keys @paritioned-storage)]
     (println (format "Closing resources for %s..." key))
-    (application-expired (partition-storage paritioned-storage key))
+    (rscs/application-expired (partition-storage paritioned-storage key))
     (println "...closed."))
   (println "...done. Bye!"))
 
