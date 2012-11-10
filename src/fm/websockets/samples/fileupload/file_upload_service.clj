@@ -28,7 +28,9 @@
   (debug (format "close!{resource: %s}" resource))
   (.close output)
   (if delete?
-    (.delete file)))
+    (let [upload-directory (.getParentFile file)]
+      (.delete file)
+      (and upload-directory (.delete upload-directory)))))
 
 (defn- create-upload-directory [id]
   (let [directory (File. (System/getProperty "user.home") "Uploads")
