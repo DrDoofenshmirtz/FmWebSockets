@@ -102,13 +102,16 @@
   (let [mask-bytes (read-byte-array input-stream 4)]
     (assoc fragment :mask-bytes mask-bytes)))
 
+(defn- indexed [coll]
+  (partition 2 (interleave (range) coll)))
+
 (defn- masked-byte-array-seq [byte-array-seq mask-bytes]
   (letfn [(mask [byte-array-seq mask-bytes]
             (lazy-seq (if (seq byte-array-seq)
                         (let [^bytes byte-array (first byte-array-seq)
                               [head tail]       (split-at (alength byte-array)
                                                           mask-bytes)]
-                          (doseq [index (range) mask-byte head]
+                          (doseq [[index mask-byte] (indexed head)]
                             (aset-byte byte-array
                                        index
                                        (bit-xor (aget byte-array index)
