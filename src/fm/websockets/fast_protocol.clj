@@ -4,13 +4,13 @@
   fm.websockets.fast-protocol
   (:use
     [clojure.contrib.def :only (defvar-)]
-    [fm.core.io :only (read-until-detected read-byte-array byte-array-seq)]
-    [fm.core.lazy-seqs :only (split-after split-after-tail)]
+    [fm.core.lazy-seqs :only (split-after)]
+    [fm.core.io :only (read-until-detected read-byte-array)]
     [fm.core.bytes :only (signed-byte number<-bytes number->bytes)])
   (:import
     (java.util UUID)
     (java.io ByteArrayInputStream InputStreamReader BufferedReader
-             OutputStreamWriter BufferedWriter)
+             ByteArrayOutputStream OutputStreamWriter BufferedWriter)
     (org.apache.commons.codec.digest DigestUtils)
     (org.apache.commons.codec.binary Base64)))
 
@@ -105,25 +105,18 @@
 (defn- indexed [coll]
   (partition 2 (interleave (range) coll)))
 
-(defn- masked-byte-array-seq [byte-array-seq mask-bytes]
-  (letfn [(mask [byte-array-seq mask-bytes]
-            (lazy-seq (if (seq byte-array-seq)
-                        (let [^bytes byte-array (first byte-array-seq)
-                              [head tail]       (split-at (alength byte-array)
-                                                          mask-bytes)]
-                          (doseq [[index mask-byte] (indexed head)]
-                            (aset-byte byte-array
-                                       index
-                                       (bit-xor (aget byte-array index)
-                                                mask-byte)))
-                          (cons byte-array
-                                (mask (rest byte-array-seq) tail))))))]
-    (mask byte-array-seq (cycle mask-bytes))))
+(defn- masked-byte-array [byte-array mask-bytes]
+  (let [mask-bytes (take (alength byte-array) (cycle mask-bytes))]
+    (doseq [[index mask-byte] (indexed mask-bytes)]
+      (aset-byte byte-array
+                 index
+                 (bit-xor (aget byte-array index) mask-byte)))
+    byte-array))
 
 (defn- read-payload [fragment input-stream]
   (let [{:keys [payload-length mask-bytes]} fragment
-        payload-bytes (byte-array-seq input-stream :available payload-length)
-        payload-bytes (masked-byte-array-seq payload-bytes mask-bytes)]
+        payload-bytes (read-byte-array input-stream payload-length)
+        payload-bytes (masked-byte-array payload-bytes mask-bytes)]
     (assoc fragment :payload payload-bytes)))
 
 (defn- read-header [fragment input-stream]
@@ -175,18 +168,24 @@
 (defn pong? [message]
   (= :pong (opcode message)))
 
-(defn payload-bytes [message]
-  (if (seq message)
-    (lazy-cat
-      (:payload (first message))
-      (payload-bytes (rest message)))))
+(defn- payload-bytes ^bytes [message]
+  (let [^ByteArrayOutputStream buffer (ByteArrayOutputStream.)]
+    (reduce (fn [^ByteArrayOutputStream buffer ^bytes byte-array]
+              (.write buffer byte-array))
+            buffer
+            (map :payload message))
+    (.toByteArray buffer)))
 
 (defmulti message-content opcode)
 
 (defmethod message-content :text-message [message]
-  (let [^bytes message-bytes (byte-array (map signed-byte
-                                              (payload-bytes message)))]
-    (String. message-bytes "UTF-8")))
+  (String. (payload-bytes message) "UTF-8"))
+
+(defmethod message-content :binary-message [message]
+  (payload-bytes message))
+
+(defmethod message-content :pong [message]
+  (seq (payload-bytes message)))
 
 (defmethod message-content :default [message]
   (payload-bytes message))
