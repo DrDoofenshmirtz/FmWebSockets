@@ -203,36 +203,25 @@
         (throw (IllegalStateException.
                  "Payload is too long for a single fragment!"))))))
 
-(defn- generate-random-bytes [length]
-  (take length (repeatedly #(rand-int 256))))
-
 (defn- generate-mask-bytes []
-  (generate-random-bytes 4))
-
-(defn- masked-seq [numbers mask-numbers]
-  (let [mask-numbers (cycle mask-numbers)
-        mask (fn mask [numbers mask-numbers]
-      (lazy-seq (if (seq numbers)
-                  (cons
-                    (bit-xor (first numbers) (first mask-numbers))
-                    (mask (rest numbers) (rest mask-numbers))))))]
-    (mask numbers mask-numbers)))
+  (take 4 (repeatedly #(signed-byte (rand-int 256)))))
 
 (defn send-bytes [output-stream bytes opcode-key final-fragment?]
-  (let [opcode-value (opcode-values-by-opcode-keys opcode-key)
+  (let [bytes              (byte-array bytes)
+        opcode-value       (opcode-values-by-opcode-keys opcode-key)
         final?-rsvs-opcode (if final-fragment?
                              (bit-set opcode-value 7)
                              opcode-value)
-        [payload-length payload-length-bytes] (payload-length (count bytes))
-        mask-bytes (generate-mask-bytes)
-        fragment-bytes (concat
-                         [final?-rsvs-opcode (bit-set payload-length 7)]
-                         payload-length-bytes
-                         mask-bytes
-                         (masked-seq bytes mask-bytes))
-        fragment-bytes (byte-array (map signed-byte fragment-bytes))]
+        [payload-length payload-length-bytes] (payload-length (alength bytes))
+        mask-bytes         (generate-mask-bytes)
+        fragment-bytes     [final?-rsvs-opcode (bit-set payload-length 7)]
+        fragment-bytes     (concat fragment-bytes
+                                   payload-length-bytes
+                                   mask-bytes
+                                   (masked-byte-array bytes mask-bytes))
+        fragment-bytes     (byte-array (map signed-byte fragment-bytes))]
     (doto output-stream
-      (.write fragment-bytes 0 (count fragment-bytes))
+      (.write fragment-bytes)
       (.flush))))
 
 (defn send-binary-message [output-stream bytes]
@@ -242,6 +231,6 @@
   (send-bytes output-stream (.getBytes text) :text-message true))
 
 (defn send-ping [output-stream]
-  (let [ping-bytes (seq (.getBytes (str (UUID/randomUUID))))]
+  (let [ping-bytes (.getBytes (str (UUID/randomUUID)))]
     (send-bytes output-stream ping-bytes :ping true)
-    ping-bytes))
+    (seq ping-bytes)))
