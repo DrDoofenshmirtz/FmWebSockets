@@ -1,4 +1,4 @@
-;; Leiningen project file for the FmWebsockets clojure project.
+;; Leiningen project file for the FmWebSockets clojure project.
 ;;
 ;; Additional dependencies (must be located the "lib" folder):
 ;; - fm-core.jar
@@ -8,10 +8,9 @@
   :dependencies [[org.clojure/clojure "1.2.1"]
                  [org.clojure/clojure-contrib "1.2.0"]
                  [commons-codec/commons-codec "1.6"]]
-  :aot [fm.websockets.samples.counter.counter-app
-        fm.websockets.samples.memprof.memory-profiling-app
-        fm.websockets.samples.fileupload.file-upload-app
-        fm.websockets.resources.types]
+  :aot [fm.websockets.exceptions
+        fm.websockets.resources.types
+        fm.websockets.samples.fileupload.file-upload-app]
   ; don't sweep the "lib" folder when fetching the deps, because
   ; this would delete the additional deps.  
   :disable-deps-clean true    

@@ -3,50 +3,58 @@
     :author "Frank Mosebach"}
   fm.websockets.connection
   (:refer-clojure :exclude [send])
+  (:require
+    [fm.websockets.fast-protocol :as prot])
   (:use
     [clojure.contrib.logging :only (debug)]
-    [fm.core.threading :only (guarded-access with-guarded)]
-    [fm.core.lazy-seqs :only (unsigned-byte-seq)]
-    [fm.websockets.protocol :only (read-connect-request
-                                   write-connect-response
-                                   send-text-message
-                                   send-binary-message
-                                   send-ping
-                                   pong?
-                                   message-content
-                                   message-seq)]))
+    [fm.core.threading :only (guarded-access with-guarded)])
+  (:import
+    (java.net Socket)
+    (fm.websockets.exceptions ConnectionFailed ConnectionClosed)))
 
-(defn- socket-streams [socket]
+(defn- throw-connection-failed [^Socket socket exception]
+  (let [error-message
+        (format "Failed to connect to WebSocket client (remote address: %s)!"
+                (.getRemoteSocketAddress socket))]
+    (debug error-message)
+    (throw (ConnectionFailed. error-message exception))))
+
+(defn- throw-connection-closed [^Socket socket exception]
+  (let [error-message
+        (format "WebSocket connection has been closed (remote address: %s)!"
+                (.getRemoteSocketAddress socket))]
+    (debug error-message)
+    (throw (ConnectionClosed. error-message exception))))
+
+(defn- socket-streams [^Socket socket]
   (try
     [(.getInputStream socket) (.getOutputStream socket)]
     (catch Exception x
-      (if-not (.isClosed socket)
-        (throw x)))))
+      (throw-connection-failed socket x))))
 
-(defn- byte-seq [socket input-stream]
-  (letfn [(read-bytes [byte-seq]
-            (lazy-seq
-              (try
-                (if (seq byte-seq)
-                  (cons
-                    (first byte-seq)
-                    (read-bytes (rest byte-seq))))
-                (catch Exception x
-                  (if-not (.isClosed socket)
-                    (throw x))))))]
-    (read-bytes (unsigned-byte-seq input-stream))))
+(defn- read-connect-request [^Socket socket input-stream]
+  (try
+    (if-let [connect-request (prot/read-connect-request input-stream)]
+      connect-request
+      (throw-connection-failed
+        socket
+        (IllegalArgumentException. "Connect request is empty!")))
+    (catch Exception x
+      (throw-connection-failed socket x))))
 
-(defn- socket-io [socket]
-  (if-let [[input-stream output-stream] (socket-streams socket)]
-    (if-let [byte-seq (byte-seq socket input-stream)]
-      [byte-seq output-stream])))
+(defn- write-connect-response [^Socket socket output-stream connect-request]
+  (try
+    (prot/write-connect-response output-stream connect-request)
+    (catch Exception x
+      (throw-connection-failed socket x))))
 
-(defn- output-accessor [socket accessor]
+(defn- output-accessor [^Socket socket accessor]
   (fn [& args]
     (try
       (apply accessor args)
       (catch Exception x
-        (if-not (.isClosed socket)
+        (if (.isClosed socket)
+          (throw-connection-closed socket x)
           (throw x))))))
 
 (defn- guarded-output [socket output-stream]
@@ -57,38 +65,37 @@
 (defn- make-output [socket output-stream]
   (vary-meta (guarded-output socket output-stream) assoc :type ::output))
 
-(defn- make-connection [connect-request byte-seq socket output-stream]
+(defn- make-connection [connect-request socket input-stream output-stream]
   (vary-meta
-    {:request connect-request
-     :messages (message-seq byte-seq)
-     :output (make-output socket output-stream)}
+    {:request  connect-request
+     :messages (prot/message-seq input-stream)
+     :output   (make-output socket output-stream)}
     assoc :type ::connection))
 
 (defn connect
   "Tries to establish a WebSocket connection, assuming the given socket is
   connected to a WebSocket client.
+
   Returns a map {:request {:request-line connect-request-line
                            :request-headers connect-request-headers}
                  :messages lazy-seq-of-incoming-messages
                  :output   guarded-access-to-connection-output}
-  if the connection has been successfully established, nil otherwise."
-  [socket]
-  (let [[byte-seq output-stream] (socket-io socket)
-        [connect-request byte-seq] (read-connect-request byte-seq)]
-    (if connect-request
-      (do
-        (debug (format
-                 "Connecting to WebSocket client (remote address: %s)..."
-                 (.getRemoteSocketAddress socket)))
-        (debug (format "Request: %s" connect-request))
-        (write-connect-response output-stream connect-request)
-        (debug "Connected to WebSocket client.")
-        (make-connection connect-request byte-seq socket output-stream))
-      (do
-        (debug (format
-                 "Failed to connect to WebSocket client (remote address: %s)!"
-                 (.getRemoteSocketAddress socket)))
-        nil))))
+  if the connection has been successfully established.
+
+  Throws fm.websockets.exceptions.ConnectionFailed if a connection cannot
+  be successfully established.
+
+  Throws fm.websockets.exceptions.ConnectionClosed if the socket has been
+  closed."
+  [^Socket socket]
+  (let [[input-stream output-stream] (socket-streams socket)
+        connect-request (read-connect-request socket input-stream)]
+    (debug (format "Connecting to WebSocket client (remote address: %s)..."
+                   (.getRemoteSocketAddress socket)))
+    (debug (format "Request: %s" connect-request))
+    (write-connect-response socket output-stream connect-request)
+    (debug "Connected to WebSocket client.")
+    (make-connection connect-request socket input-stream output-stream)))
 
 (defn take-message
   "Takes the next message from the given connection's lazy message sequence.
@@ -118,10 +125,10 @@
   (fn [output-stream content] (type content)))
 
 (defmethod send-content String [output-stream content]
-  (send-text-message output-stream content))
+  (prot/send-text-message output-stream content))
 
 (defmethod send-content (Class/forName "[B") [output-stream content]
-  (send-binary-message output-stream content))
+  (prot/send-binary-message output-stream content))
 
 (defn send
   "Sends a collection of contents to the given target.
@@ -132,14 +139,14 @@
       (send-content % content))))
 
 (defn- pong-for? [ping-content message]
-  (and (pong? message) (= ping-content (message-content message))))
+  (and (prot/pong? message) (= ping-content (prot/message-content message))))
 
 (defn ping
   "Sends a ping message over the given connection and awaits the corresponding
   pong message.
   Returns a collection of [pong-message connection-with-remaining-messages]."
   [connection]
-  (let [ping-content (with-guarded (output connection) (send-ping %))]
+  (let [ping-content (with-guarded (output connection) (prot/send-ping %))]
     (debug (format
              "Sent ping content: %s. Waiting for pong..."
              (print-str ping-content)))
