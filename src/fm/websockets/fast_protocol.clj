@@ -206,20 +206,28 @@
 (defn- generate-mask-bytes []
   (take 4 (repeatedly #(signed-byte (rand-int 256)))))
 
-(defn send-bytes [output-stream bytes opcode-key final-fragment?]
-  (let [bytes              (byte-array bytes)
-        opcode-value       (opcode-values-by-opcode-keys opcode-key)
+(defn- header-bytes [opcode-key final-fragment? payload-size mask-bytes]
+  (let [opcode-value       (opcode-values-by-opcode-keys opcode-key)
         final?-rsvs-opcode (if final-fragment?
                              (bit-set opcode-value 7)
                              opcode-value)
-        [payload-length payload-length-bytes] (payload-length (alength bytes))
-        mask-bytes         (generate-mask-bytes)
-        fragment-bytes     [final?-rsvs-opcode (bit-set payload-length 7)]
-        fragment-bytes     (concat fragment-bytes
-                                   payload-length-bytes
-                                   mask-bytes
-                                   (masked-byte-array bytes mask-bytes))
-        fragment-bytes     (byte-array (map signed-byte fragment-bytes))]
+        [payload-length payload-length-bytes] (payload-length payload-size)]
+    (map signed-byte (concat [final?-rsvs-opcode (bit-set payload-length 7)]
+                             payload-length-bytes
+                             mask-bytes))))
+
+(defn- payload-bytes [payload-bytes mask-bytes]
+  (map #(signed-byte (bit-xor %1 %2)) payload-bytes (cycle mask-bytes)))
+
+(defn send-bytes [output-stream bytes opcode-key final-fragment?]
+  (let [mask-bytes     (generate-mask-bytes)
+        payload-size   (count bytes)
+        header-bytes   (header-bytes opcode-key
+                                     final-fragment?
+                                     payload-size
+                                     mask-bytes)
+        payload-bytes  (payload-bytes bytes mask-bytes)
+        fragment-bytes (byte-array (concat header-bytes payload-bytes))]
     (doto output-stream
       (.write fragment-bytes)
       (.flush))))
