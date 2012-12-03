@@ -168,7 +168,7 @@
 (defn pong? [message]
   (= :pong (opcode message)))
 
-(defn- payload-bytes ^bytes [message]
+(defn message-payload ^bytes [message]
   (let [^ByteArrayOutputStream buffer (ByteArrayOutputStream.)]
     (reduce (fn [^ByteArrayOutputStream buffer ^bytes byte-array]
               (.write buffer byte-array))
@@ -179,16 +179,16 @@
 (defmulti message-content opcode)
 
 (defmethod message-content :text-message [message]
-  (String. (payload-bytes message) "UTF-8"))
+  (String. (message-payload message) "UTF-8"))
 
 (defmethod message-content :binary-message [message]
-  (payload-bytes message))
+  (message-payload message))
 
 (defmethod message-content :pong [message]
-  (seq (payload-bytes message)))
+  (seq (message-payload message)))
 
 (defmethod message-content :default [message]
-  (payload-bytes message))
+  (message-payload message))
 
 (defn- payload-length [length]
   (if (<= length 125)
