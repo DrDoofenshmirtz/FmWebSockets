@@ -65,10 +65,24 @@
 (defn- make-output [socket output-stream]
   (vary-meta (guarded-output socket output-stream) assoc :type ::output))
 
+(defn- message-seq [socket input-stream]
+  (let [message-seq (prot/message-seq input-stream)
+        wrapped-seq (fn wrapped-seq [message-seq]
+                      (lazy-seq
+                        (if (seq message-seq)
+                          (try
+                            (cons (first message-seq)
+                                  (wrapped-seq (rest message-seq)))
+                            (catch Exception x
+                              (if (.isClosed socket)
+                                (throw-connection-closed socket x)
+                                (throw x)))))))]
+    (wrapped-seq message-seq)))
+
 (defn- make-connection [connect-request socket input-stream output-stream]
   (vary-meta
     {:request  connect-request
-     :messages (prot/message-seq input-stream)
+     :messages (message-seq socket input-stream)
      :output   (make-output socket output-stream)}
     assoc :type ::connection))
 
