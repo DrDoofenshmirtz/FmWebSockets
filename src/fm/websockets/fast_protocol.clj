@@ -13,7 +13,10 @@
     (java.io ByteArrayInputStream InputStreamReader BufferedReader
              ByteArrayOutputStream OutputStreamWriter BufferedWriter)
     (org.apache.commons.codec.digest DigestUtils)
-    (org.apache.commons.codec.binary Base64)))
+    (org.apache.commons.codec.binary Base64)
+    (fm.websockets.exceptions EndOfData)))
+
+(defvar- end-of-data-tag (Object.))
 
 (defvar- end-of-connect-request '(13 10 13 10))
 
@@ -154,13 +157,19 @@
 (defn- fragment-seq [input-stream]
   (lazy-seq (let [fragment (read-fragment input-stream)]
               (if (and fragment (not= :connection-close (:opcode fragment)))
-                (cons fragment (fragment-seq input-stream))))))
+                (cons fragment (fragment-seq input-stream))
+                (cons end-of-data-tag nil)))))
+
+(defn- final-fragment? [fragment-or-eod-tag]
+  (if (identical? end-of-data-tag fragment-or-eod-tag)
+    (throw (EndOfData. "End of data detected while reading messages!"))
+    (:final-fragment? fragment-or-eod-tag)))
 
 (defn message-seq [input-stream]
   (letfn [(chunked-fragment-seq [fragment-seq]
             (lazy-seq (if (seq fragment-seq)
                         (let [[head tail]
-                              (split-after :final-fragment? fragment-seq)]
+                              (split-after final-fragment? fragment-seq)]
                           (cons head (chunked-fragment-seq tail))))))]
     (chunked-fragment-seq (fragment-seq input-stream))))
 
