@@ -19,12 +19,17 @@
     (debug error-message)
     (throw (ConnectionFailed. error-message exception))))
 
-(defn- throw-connection-closed [^Socket socket exception]
-  (let [error-message
-        (format "WebSocket connection has been closed (remote address: %s)!"
-                (.getRemoteSocketAddress socket))]
-    (debug error-message)
-    (throw (ConnectionClosed. error-message exception))))
+(defn- throw-connection-closed
+  ([socket]
+    (throw-connection-closed socket nil))
+  ([^Socket socket exception]
+    (let [error-message
+          (format "WebSocket connection has been closed (remote address: %s)!"
+                  (.getRemoteSocketAddress socket))]
+      (debug error-message)
+      (throw (if exception
+               (ConnectionClosed. error-message exception)
+               (ConnectionClosed. error-message))))))
 
 (defn- socket-streams [^Socket socket]
   (try
@@ -76,7 +81,8 @@
                             (catch Exception x
                               (if (.isClosed socket)
                                 (throw-connection-closed socket x)
-                                (throw x)))))))]
+                                (throw x))))
+                          (throw-connection-closed socket))))]
     (wrapped-seq message-seq)))
 
 (defn- make-connection [connect-request socket input-stream output-stream]
