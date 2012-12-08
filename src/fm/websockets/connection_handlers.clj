@@ -1,7 +1,13 @@
 (ns
-  ^{:doc "Utilities for processing the messages produced by a connection."
+  ^{:doc "Functions for constructing connection handlers.
+
+         A (valid) connection handler is a function that accepts a connection
+         as its single argument, 'does something' with the connection (consumes
+         the connection's messages, adds features to the connection, etc.), and
+         finally returns (the resulting state of) the connection"
+
     :author "Frank Mosebach"}
-  fm.websockets.messages
+  fm.websockets.connection-handlers
   (:use
     [fm.websockets.connection :only (take-message)]))
 

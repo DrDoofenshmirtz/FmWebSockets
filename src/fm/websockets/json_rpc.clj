@@ -10,7 +10,7 @@
     [fm.core.hyphenate :only (hyphenate)]
     [fm.websockets.protocol :only (opcode text-message? message-content)]
     [fm.websockets.connection :only (send)]
-    [fm.websockets.messages :only (message-processor)])
+    [fm.websockets.connection-handlers :only (message-processor)])
   (:import
     (java.util UUID)))
 
