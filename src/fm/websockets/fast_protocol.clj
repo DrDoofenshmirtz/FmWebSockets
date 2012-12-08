@@ -93,7 +93,7 @@
       byte-array)))
 
 (defn- read-payload-bytes [input-stream length]
-  (let [payload-bytes (read-byte-array input-stream length)]
+  (if-let [payload-bytes (read-byte-array input-stream length)]
     (number<-bytes payload-bytes)))
 
 (defn- read-payload-length [fragment input-stream]
@@ -105,7 +105,7 @@
     (assoc fragment :payload-length payload-length)))
 
 (defn- read-mask-bytes [fragment input-stream]
-  (let [mask-bytes (read-byte-array input-stream 4)]
+  (if-let [mask-bytes (read-byte-array input-stream 4)]
     (assoc fragment :mask-bytes mask-bytes)))
 
 (defn- indexed [coll]
@@ -120,25 +120,24 @@
     byte-array))
 
 (defn- read-payload [fragment input-stream]
-  (let [{:keys [payload-length mask-bytes]} fragment
-        payload-bytes (read-byte-array input-stream payload-length)
-        payload-bytes (masked-byte-array payload-bytes mask-bytes)]
-    (assoc fragment :payload payload-bytes)))
+  (let [{:keys [payload-length mask-bytes]} fragment]
+    (if-let [payload-bytes (read-byte-array input-stream payload-length)]
+      (assoc fragment :payload (masked-byte-array payload-bytes mask-bytes)))))
 
 (defn- read-header [fragment input-stream]
-  (let [^bytes header-bytes    (read-byte-array input-stream 2)
-        final?-rsvs-opcode     (aget header-bytes 0)
-        masked?-payload-length (aget header-bytes 1)
-        final-fragment?        (bit-test final?-rsvs-opcode 7)
-        opcode                 (bit-and final?-rsvs-opcode 0xF)
-        opcode                 (opcode-keys-by-opcode-values opcode :unknown)
-        masked?                (bit-test masked?-payload-length 7)
-        payload-length         (bit-and masked?-payload-length 0x7F)]
-    (assoc fragment
-           :final-fragment? final-fragment?
-           :opcode          opcode
-           :masked?         masked?
-           :payload-length  payload-length)))
+  (if-let [^bytes header-bytes (read-byte-array input-stream 2)]
+    (let [final?-rsvs-opcode     (aget header-bytes 0)
+          masked?-payload-length (aget header-bytes 1)
+          final-fragment?        (bit-test final?-rsvs-opcode 7)
+          opcode                 (bit-and final?-rsvs-opcode 0xF)
+          opcode                 (opcode-keys-by-opcode-values opcode :unknown)
+          masked?                (bit-test masked?-payload-length 7)
+          payload-length         (bit-and masked?-payload-length 0x7F)]
+      (assoc fragment
+             :final-fragment? final-fragment?
+             :opcode          opcode
+             :masked?         masked?
+             :payload-length  payload-length))))
 
 (defn- read-fragment [input-stream]
   (let [readers  [read-header read-payload-length read-mask-bytes read-payload]
