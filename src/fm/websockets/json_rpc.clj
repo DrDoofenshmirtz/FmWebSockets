@@ -8,7 +8,7 @@
     [clojure.contrib.json :only (json-str read-json)]
     [fm.core.bytes :only (signed-byte)]
     [fm.core.hyphenate :only (hyphenate)]
-    [fm.websockets.protocol :only (opcode text-message? message-content)]
+    [fm.websockets.fast-protocol :only (opcode text-message? message-content)]
     [fm.websockets.connection :only (send)]
     [fm.websockets.messages :only (message-processor)])
   (:import
