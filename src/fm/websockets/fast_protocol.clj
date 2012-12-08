@@ -140,13 +140,16 @@
              :payload-length  payload-length))))
 
 (defn- read-fragment [input-stream]
-  (let [readers  [read-header read-payload-length read-mask-bytes read-payload]
-        fragment (reduce (fn [fragment reader]
-                           (reader fragment input-stream))
-                         {}
-                         readers)]
-    (if-not (empty? fragment)
-      fragment)))
+  (letfn [(read-sections [fragment readers]
+            (if (seq readers)
+              (if-let [fragment ((first readers) fragment input-stream)]
+                (recur fragment (rest readers)))
+              (if-not (empty? fragment)
+                fragment)))]
+    (read-sections {} [read-header
+                       read-payload-length
+                       read-mask-bytes
+                       read-payload])))
 
 (defn- fragment-seq [input-stream]
   (lazy-seq (let [fragment (read-fragment input-stream)]
