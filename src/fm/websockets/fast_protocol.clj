@@ -2,10 +2,11 @@
   ^{:doc "Stuff for handling the HTML5 WebSockets protocol."
     :author "Frank Mosebach"}
   fm.websockets.fast-protocol
+  (:require
+    [fm.core.io :as io])
   (:use
     [clojure.contrib.def :only (defvar-)]
     [fm.core.lazy-seqs :only (split-after)]
-    [fm.core.io :only (read-until-detected read-byte-array)]
     [fm.core.bytes :only (signed-byte number<-bytes number->bytes)])
   (:import
     (java.util UUID)
@@ -60,7 +61,7 @@
 
 (defn read-connect-request [input-stream]
   (-> input-stream
-      (read-until-detected end-of-connect-request)
+      (io/read-until-detected end-of-connect-request)
       parse-connect-request))
 
 (defn- sec-ws-accept [sec-ws-key]
@@ -85,6 +86,11 @@
       (.newLine)
       (.newLine)
       (.flush))))
+
+(defn- read-byte-array [input-stream length]
+  (let [^bytes byte-array (io/read-byte-array input-stream length)]
+    (if (= (alength byte-array) length)
+      byte-array)))
 
 (defn- read-payload-bytes [input-stream length]
   (let [payload-bytes (read-byte-array input-stream length)]
