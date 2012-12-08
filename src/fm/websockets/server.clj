@@ -5,18 +5,22 @@
   (:require
     [fm.websockets.socket-server :as socket-server])
   (:use
-    [clojure.contrib.logging :only (debug)]
+    [clojure.contrib.logging :only (debug error)]
     [fm.websockets.connection :only (connect)]))
+
+(defn- create-connection [socket]
+  (try
+    (connect socket)
+    (catch Exception x
+      (error (format "Connection failed (remote address: %s)!"
+                     (.getRemoteSocketAddress socket))
+             x)
+      nil)))
 
 (defn- wrap-connection-handler [connection-handler]
   (fn [socket]
     (if-let [connection (connect socket)]
-      (connection-handler connection)
-      (do
-        (debug (format
-                 "Connection failed (remote address: %s)!"
-                 (.getRemoteSocketAddress socket)))
-        nil))))
+      (connection-handler connection))))
 
 (defn start-up
   ([port connection-handler]
