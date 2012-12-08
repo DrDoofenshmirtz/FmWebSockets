@@ -1,7 +1,7 @@
 (ns
   ^{:doc "Stuff for handling the HTML5 WebSockets protocol."
     :author "Frank Mosebach"}
-  fm.websockets.fast-protocol
+  fm.websockets.protocol
   (:require
     [fm.core.io :as io])
   (:use

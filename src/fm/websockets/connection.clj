@@ -4,7 +4,7 @@
   fm.websockets.connection
   (:refer-clojure :exclude [send])
   (:require
-    [fm.websockets.fast-protocol :as prot])
+    [fm.websockets.protocol :as prot])
   (:use
     [clojure.contrib.logging :only (debug)]
     [fm.core.threading :only (guarded-access with-guarded)])
