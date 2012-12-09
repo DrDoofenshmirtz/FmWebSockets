@@ -10,6 +10,7 @@
     [fm.core.exception :only (exception-chain)]
     [fm.core.threading :only (guarded-access with-guarded)])
   (:import
+    (java.util UUID)
     (java.net Socket)
     (fm.websockets.exceptions ConnectionFailed ConnectionClosed EndOfData)))
 
@@ -88,7 +89,8 @@
 
 (defn- make-connection [connect-request socket input-stream output-stream]
   (vary-meta
-    {:request  connect-request
+    {:id       (str (UUID/randomUUID))
+     :request  connect-request
      :messages (message-seq socket input-stream)
      :output   (make-output socket output-stream)}
     assoc :type ::connection))
@@ -97,7 +99,8 @@
   "Tries to establish a WebSocket connection, assuming the given socket is
   connected to a WebSocket client.
 
-  Returns a map {:request {:request-line connect-request-line
+  Returns a map {:id      uuid-string
+                 :request {:request-line    connect-request-line
                            :request-headers connect-request-headers}
                  :messages lazy-seq-of-incoming-messages
                  :output   guarded-access-to-connection-output}

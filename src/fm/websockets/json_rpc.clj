@@ -10,9 +10,7 @@
     [fm.core.hyphenate :only (hyphenate)]
     [fm.websockets.protocol :only (opcode text-message? message-content)]
     [fm.websockets.connection :only (send)]
-    [fm.websockets.connection-handlers :only (message-processor)])
-  (:import
-    (java.util UUID)))
+    [fm.websockets.connection-handlers :only (message-processor)]))
 
 (defn send-object [target object]
   (send target (json-str object)))
@@ -25,9 +23,6 @@
 
 (defn send-notification [target method & params]
   (send-object target {:id nil :method method :params params}))
-
-(defn- sign-connection [connection]
-  (assoc connection :id (str (UUID/randomUUID))))
 
 (defn- acknowledge-connection [{:keys [id] :as connection}]
   (send-notification connection "connectionAcknowledged" id)
@@ -150,7 +145,6 @@
     (debug (format "Request: %s" (:request connection)))
     (debug "Dispatching requests...")
     (let [connection (-> connection
-                         sign-connection
                          acknowledge-connection
                          (process-messages request-handler))]
       (debug (format "JSON RPC connection closed: %s." connection))
