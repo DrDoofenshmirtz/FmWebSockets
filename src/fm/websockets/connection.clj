@@ -7,10 +7,11 @@
     [fm.websockets.protocol :as prot])
   (:use
     [clojure.contrib.logging :only (debug)]
+    [fm.core.exception :only (exception-chain)]
     [fm.core.threading :only (guarded-access with-guarded)])
   (:import
     (java.net Socket)
-    (fm.websockets.exceptions ConnectionFailed ConnectionClosed)))
+    (fm.websockets.exceptions ConnectionFailed ConnectionClosed EndOfData)))
 
 (defn- throw-connection-failed [^Socket socket exception]
   (let [error-message
@@ -117,12 +118,26 @@
     (debug "Connected to WebSocket client.")
     (make-connection connect-request socket input-stream output-stream)))
 
+(defn caused-by-closed-connection?
+  "Returns true if the given connection might have been caused by a closed
+  WebSocket connection."
+  [exception]
+  (let [causes (exception-chain exception)]
+    (some #(or (instance? ConnectionClosed %)
+               (instance? EndOfData %))
+          causes)))
+
 (defn take-message
   "Takes the next message from the given connection's lazy message sequence.
   Returns a collection of [next-message connection-with-remaining-messages]."
   [connection]
   [(first (:messages connection))
    (assoc connection :messages (rest (:messages connection)))])
+
+(defn drop-messages
+  "Returns a connection with all messages dropped from its message sequence."
+  [connection]
+  (assoc connection :messages ()))
 
 (defmulti output
   "Extracts a suitable connection output from a given target."

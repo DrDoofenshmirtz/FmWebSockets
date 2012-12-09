@@ -8,16 +8,24 @@
 
     :author "Frank Mosebach"}
   fm.websockets.connection-handlers
-  (:use
-    [fm.websockets.connection :only (take-message)]))
+  (:require
+    [clojure.contrib.logging :as log]
+    [fm.websockets.connection :as conn]))
 
 (defn- dispatch-messages [connection message-handler]
   (if (nil? connection)
     (throw (IllegalArgumentException. "Illegal connection: must not be nil!"))
-    (let [[message connection] (take-message connection)]
-      (if message
-        (recur (message-handler connection message) message-handler)
-        connection))))
+    (try
+      (let [[message connection] (conn/take-message connection)]
+        (if message
+          (recur (message-handler connection message) message-handler)
+          connection))
+      (catch Exception x
+        (if (conn/caused-by-closed-connection? x)
+          (let [connection (conn/drop-messages connection)]
+            (log/debug (format "WebSocket connection closed: %s." connection))
+            connection)
+          (throw x))))))
 
 (defn message-processor
   "Creates a connection handler, i. e. a function of one argument accepting a
