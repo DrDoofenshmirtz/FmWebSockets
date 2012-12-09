@@ -7,7 +7,7 @@
     [fm.websockets.protocol :as prot])
   (:use
     [clojure.contrib.logging :only (debug)]
-    [fm.core.exception :only (exception-chain)]
+    [fm.core.exception :only (exception-chain caused-by)]
     [fm.core.threading :only (guarded-access with-guarded)])
   (:import
     (java.util UUID)
@@ -72,13 +72,23 @@
 (defn- make-output [socket output-stream]
   (vary-meta (guarded-output socket output-stream) assoc :type ::output))
 
+(defn- fragment-seq [socket message]
+  (lazy-seq
+    (try
+      (if (seq message)
+        (cons (first message) (fragment-seq socket (rest message))))
+      (catch Exception x
+        (if-let [x (caused-by x EndOfData)]
+          (throw-connection-closed socket x)
+          (throw x))))))
+
 (defn- message-seq [socket input-stream]
   (let [message-seq (prot/message-seq input-stream)
         wrapped-seq (fn wrapped-seq [message-seq]
                       (lazy-seq
                         (if (seq message-seq)
                           (try
-                            (cons (first message-seq)
+                            (cons (fragment-seq socket (first message-seq))
                                   (wrapped-seq (rest message-seq)))
                             (catch Exception x
                               (if (.isClosed socket)
