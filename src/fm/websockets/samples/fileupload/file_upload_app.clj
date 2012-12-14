@@ -24,7 +24,7 @@
 (def ^{:private true} paritioned-storage (ref nil))
 
 (defn- make-resource-storage [connection]
-  (partition-storage paritioned-storage (str (UUID/randomUUID))))
+  (partition-storage paritioned-storage (:id connection)))
 
 (defn- make-connection-handler []
   (let [request-handler    (jrpc/ns-dispatcher service-namespace)
