@@ -14,9 +14,7 @@
     [clojure.contrib.command-line :only (with-command-line)]
     [fm.websockets.connection :only (ping)]
     [fm.websockets.server :only (start-up)]
-    [fm.websockets.resources.storage :only (partition-storage)])
-  (:import
-    (java.util UUID)))
+    [fm.websockets.resources.storage :only (partition-storage)]))
 
 (def ^{:private true} service-namespace
                       'fm.websockets.samples.fileupload.file-upload-service)
