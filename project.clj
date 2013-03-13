@@ -2,6 +2,7 @@
 ;;
 ;; Additional dependencies (must be located the "lib" folder):
 ;; - fm-core.jar
+;; - fm-resources.jar
 
 (defproject fm/websockets "1.0.0"
   :description "FmWebSockets: Clojure HTML5 WebSockets."
@@ -9,7 +10,6 @@
                  [org.clojure/clojure-contrib "1.2.0"]
                  [commons-codec/commons-codec "1.6"]]
   :aot [fm.websockets.exceptions
-        fm.websockets.resources.types
         fm.websockets.samples.fileupload.file-upload-app]
   ; don't sweep the "lib" folder when fetching the deps, because
   ; this would delete the additional deps.  

@@ -12,33 +12,33 @@
   (:use
     [clojure.contrib.logging :only (debug)]
     [clojure.contrib.command-line :only (with-command-line)]
+    [fm.resources.store :only (partition-store)]
     [fm.websockets.connection :only (ping)]
-    [fm.websockets.server :only (start-up)]
-    [fm.websockets.resources.storage :only (partition-storage)]))
+    [fm.websockets.server :only (start-up)]))
 
 (def ^{:private true} service-namespace
                       'fm.websockets.samples.fileupload.file-upload-service)
 
-(def ^{:private true} paritioned-storage (ref nil))
+(def ^{:private true} resource-store (ref nil))
 
-(defn- make-resource-storage [connection]
-  (partition-storage paritioned-storage (:id connection)))
+(defn- make-resource-store [connection]
+  (partition-store resource-store (:id connection)))
 
 (defn- make-connection-handler []
   (let [request-handler    (jrpc/ns-dispatcher service-namespace)
         request-handler    (rscs/request-handler request-handler)
         connection-handler (jrpc/connection-handler request-handler)
         connection-handler (rscs/connection-handler connection-handler
-                                                    make-resource-storage)]
+                                                    make-resource-store)]
     (fn [connection]
       (ping connection)
       (connection-handler connection))))
 
 (defn- close-resources []
   (println "Terminating application FileUploadApp...")
-  (doseq [key (keys @paritioned-storage)]
+  (doseq [key (keys @resource-store)]
     (println (format "Closing resources for %s..." key))
-    (rscs/application-expired (partition-storage paritioned-storage key))
+    (rscs/application-expired! (partition-store resource-store key))
     (println "...closed."))
   (println "...done. Bye!"))
 

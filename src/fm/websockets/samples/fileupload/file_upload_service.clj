@@ -2,11 +2,9 @@
   (:use
     [clojure.contrib.logging :only (debug)]
     [fm.core.bytes :only (signed-byte)]
+    [fm.resources.core :only (expired)]
     [fm.websockets.json-rpc :only (result)]
-    [fm.websockets.resources :only (manage-resource
-                                    get-resource
-                                    remove-resources
-                                    update-resources)])
+    [fm.websockets.resources :only (store! get-resource send-to! remove!)])
   (:import
     (java.io File FileOutputStream IOException)
     (java.util UUID)))
@@ -14,23 +12,24 @@
 (defn- data-bytes [data]
   (.getBytes (str data) "ISO-8859-1"))
 
-(defn- on-event [id event resource]
-  (debug (format "on-event{id: %s resource: %s}" id resource))
-  (if (and (= id :scope-expired) (not= (:scope event) :request))
-    (assoc resource :delete? true)
-    resource))
+(defn- save [{output ::output}]
+  (.close output))
 
-(defn- expired? [resource]
-  (debug (format "expired?{resource: %s}" resource))
-  (:expired? resource))
-
-(defn- close! [{:keys [file output delete?] :as resource}]
-  (debug (format "close!{resource: %s}" resource))
+(defn- delete [{output ::output file ::file}]
   (.close output)
-  (if delete?
-    (let [upload-directory (.getParentFile file)]
-      (.delete file)
-      (and upload-directory (.delete upload-directory)))))
+  (let [upload-directory (.getParentFile file)]
+    (.delete file)
+    (if upload-directory
+      (.delete upload-directory))))
+
+(defn- close! [{close! ::close! :as resource}]
+  (debug (format "close!{resource: %s}" resource))
+  (close! resource))
+
+(def ^{:private true} slots {::done (fn [resource]
+                                      (-> resource
+                                          (assoc ::close! save)
+                                          expired))})
 
 (defn- create-upload-directory [id]
   (let [directory (File. (System/getProperty "user.home") "Uploads")
@@ -42,40 +41,33 @@
 (defn- make-resource [id file-name]
   (let [file   (File. (create-upload-directory id) file-name)
         output (FileOutputStream. file)]
-    {:file file :output output}))
+    {::file file ::output output ::close! delete}))
 
 (defn- start-upload [connection upload]
   (let [{file-name :fileName data :data} upload
         id (str (UUID/randomUUID))
-        {output :output :as resource} (make-resource id file-name)]
-    (manage-resource connection
-                     id resource
-                     :connection
-                     :on-event on-event
-                     :expired? expired?
-                     :close!   close!)
+        {output ::output :as resource} (make-resource id file-name)]
+    (store! connection id resource :connection :close! close! :slots slots)
     (.write output (data-bytes data))
     id))
 
 (defn- continue-upload [connection upload]
   (let [{:keys [id data]} upload
-        {output :output :as resource} (get-resource connection id)]
+        {output ::output :as resource} (get-resource connection id)]
     (if-not resource
       (throw (IllegalStateException.
-               "Upload failed (resource has been closed)!")))
+               "Upload failed (file has been closed)!")))
     (.write output (data-bytes data))
     id))
 
 (defn- finish-upload [connection upload]
   (let [{id :id} upload]
-    (remove-resources connection id)
+    (send-to! connection [id] ::done)
     nil))
 
 (defn- abort-upload [connection upload]
   (let [{id :id} upload]
-    (update-resources connection
-                      #(assoc % :expired? true :delete? true)
-                      :keys [id])
+    (remove! connection id)
     nil))
 
 (defn upload-file [connection upload]

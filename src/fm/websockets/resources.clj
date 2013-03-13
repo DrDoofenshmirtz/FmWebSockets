@@ -2,120 +2,64 @@
   ^{:doc "Resource management support for WebSocket connections."
     :author "Frank Mosebach"}
   fm.websockets.resources
-  (:use
-    [fm.websockets.resources.operations :only (with-default-functions)]
-    [fm.websockets.resources.storage :only (manage!
-                                            send!
-                                            remove!
-                                            update!
-                                            resource)]))
+  (:require
+    [fm.resources.store :as rsc-store]
+    [fm.resources.slot-extensions :as rsc-slot-ext]))
 
-(defn with-storage [connection resource-storage]
-  (assert connection)
-  (assert resource-storage)
-  (assoc connection ::storage resource-storage))
+(def ^{:private true} valid-scopes #{:request :connection :application})
 
-(defn get-storage [connection]
-  (if-let [storage (::storage connection)]
-    storage
+(def ^{:private true} ordered-scopes [:request :connection :application])
+
+(defn- valid-scope? [scope]
+  (contains? valid-scopes scope))
+
+(defn- resource-store [connection]
+  (if-let [resource-store (::resource-store connection)]
+    resource-store
     (throw (IllegalStateException.
-             "Connection does not have a resource storage!"))))
+             "Connection does not have a resource store!"))))
 
-(def ^{:private true} levels-by-scope {:request     0
-                                       :connection  1
-                                       :application 2})
+(defn- with-scope [slots scope]
+  (rsc-slot-ext/with-scope slots scope ordered-scopes))
 
-(defn- scope-level [scope]
-  (get levels-by-scope scope Integer/MAX_VALUE))
-
-(defn- expired? [scoped-resource expired-scope]
-  (<= (scope-level (::scope scoped-resource)) (scope-level expired-scope)))
-
-(defn- decorate-on-event [on-event]
-  (fn [id event scoped-resource]
-    (if (= id ::scope-expired)
-      (let [resource-scope (::scope scoped-resource)
-            expired-scope  (:scope event)
-            resource       (on-event :scope-expired
-                                     event
-                                     (::resource scoped-resource))]
-        (if (expired? scoped-resource expired-scope)
-          (assoc scoped-resource ::resource resource ::expired? true)
-          (assoc scoped-resource ::resource resource)))
-      (let [resource (on-event id event (::resource scoped-resource))]
-        (assoc scoped-resource ::resource resource)))))
-
-(defn- decorate-close! [close!]
-  (fn [scoped-resource]
-    (close! (::resource scoped-resource))))
-
-(defn- decorate-expired? [expired?]
-  (fn [scoped-resource]
-    (or (::expired? scoped-resource)
-        (expired? (::resource scoped-resource)))))
-
-(defn- scoped-resource-funcs [funcs]
-  (let [{:keys [on-event expired? close!]} (with-default-functions funcs)]
-    (assoc funcs :on-event (decorate-on-event on-event)
-                 :expired? (decorate-expired? expired?)
-                 :close!   (decorate-close! close!))))
-
-(defn- scoped-resource [resource scope]
-  {::resource resource ::scope (or scope :application)})
-
-(def ^{:private true} scopes #{:request :connection :application})
-
-(defn manage-resource [connection key resource scope & {:as funcs}]
+(defn store! [connection key resource scope & {:as kwargs}]
   (assert connection)
   (assert resource)
-  (assert (scopes scope))
-  (let [storage  (get-storage connection)
-        resource (scoped-resource resource scope)
-        funcs    (scoped-resource-funcs funcs)
-        funcs    (interleave (keys funcs) (vals funcs))]
-    (apply manage! storage key resource funcs)))
+  (assert (valid-scope? scope))
+  (let [store  (resource-store connection)
+        kwargs (update-in kwargs [:slots] with-scope scope ordered-scopes)]
+    (apply rsc-store/store! store key resource (flatten (seq kwargs)))))
+
+(defn send! [connection signal & args]
+  (assert connection)
+  (apply rsc-store/send! (resource-store connection) signal args))
+
+(defn send-to! [connection keys signal & args]
+  (assert connection)
+  (apply rsc-store/send-to! (resource-store connection) signal args))
+
+(defn remove! [connection & keys]
+  (assert connection)
+  (apply rsc-store/remove! (resource-store connection) keys))
 
 (defn get-resource
   ([connection key]
     (get-resource connection key nil))
   ([connection key default]
     (assert connection)
-    (if-let [scoped-resource (resource (get-storage connection) key)]
-      (::resource scoped-resource)
-      default)))
+    (rsc-store/get-resource (resource-store connection) key default)))
 
-(defn update-resources [connection update & kwargs]
+(defn request-expired! [connection]
   (assert connection)
-  (assert update)
-  (let [update (fn [{resource ::resource :as scoped-resource} & args]
-                 (let [resource (apply update resource args)]
-                   (assoc scoped-resource ::resource resource)))]
-    (apply update! (get-storage connection)
-                   (concat [:update update] kwargs))))
+  (rsc-slot-ext/scope-expired! (resource-store connection) :request))
 
-(defn remove-resources [connection key & keys]
+(defn connection-expired! [connection]
   (assert connection)
-  (apply remove! (get-storage connection) key keys))
+  (rsc-slot-ext/scope-expired! (resource-store connection) :connection))
 
-(defn request-expired [connection method params]
-  (assert connection)
-  (assert method)
-  (send! (get-storage connection)
-         ::scope-expired
-         {:scope      :request
-          :connection connection
-          :method     method
-          :params     params}))
-
-(defn connection-expired [connection]
-  (assert connection)
-  (send! (get-storage connection)
-         ::scope-expired
-         {:scope :connection :connection connection}))
-
-(defn application-expired [storage]
-  (assert storage)
-  (send! storage ::scope-expired {:scope :application}))
+(defn application-expired! [store]
+  (assert store)
+  (rsc-slot-ext/scope-expired! store :application))
 
 (defn request-handler [request-handler]
   (assert request-handler)
@@ -124,12 +68,17 @@
       (request-expired connection method params)
       result)))
 
-(defn connection-handler [connection-handler storage-constructor]
+(defn- with-store [connection resource-store]
+  (assert connection)
+  (assert resource-store)
+  (assoc connection ::resource-store resource-store))
+
+(defn connection-handler [connection-handler store-constructor]
   (assert connection-handler)
-  (assert storage-constructor)
+  (assert store-constructor)
   (fn [connection]
-    (let [storage    (storage-constructor connection)
-          connection (with-storage connection storage)
+    (let [store      (store-constructor connection)
+          connection (with-store connection store)
           connection (connection-handler connection)]
-      (connection-expired connection)
+      (connection-expired! connection)
       connection)))
