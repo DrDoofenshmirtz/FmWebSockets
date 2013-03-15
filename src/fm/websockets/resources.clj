@@ -65,7 +65,7 @@
   (assert request-handler)
   (fn [connection method params]
     (let [result (request-handler connection method params)]
-      (request-expired connection method params)
+      (request-expired! connection method params)
       result)))
 
 (defn- with-store [connection resource-store]
