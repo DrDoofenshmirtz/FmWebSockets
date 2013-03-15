@@ -1,6 +1,7 @@
 /lib/**
 /out/**
 /classes/**
+/target/**
 *.class
 *.jar
 *.iml
