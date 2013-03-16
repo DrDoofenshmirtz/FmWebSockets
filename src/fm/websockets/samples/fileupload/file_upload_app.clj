@@ -46,7 +46,7 @@
   (.addShutdownHook (Runtime/getRuntime)
                     (Thread. close-resources "close-resources-on-shutdown")))
 
-(defn -main [& args]
+(defn run [& args]
   (with-command-line args
     "FileUploadApp"
     [[port "The app's server port number" 17500]]
@@ -55,3 +55,7 @@
     (let [port (Integer/parseInt (.trim (str port)) 10)]
       (let [server (start-up port (make-connection-handler))]
         (debug "...done. Waiting for clients...")))))
+
+(defn -main [& args]
+  (apply run args))
+
