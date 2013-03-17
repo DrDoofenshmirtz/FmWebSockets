@@ -27,7 +27,7 @@
   (assert resource)
   (assert (valid-scope? scope))
   (let [store  (resource-store connection)
-        kwargs (update-in kwargs [:slots] with-scope scope ordered-scopes)]
+        kwargs (update-in kwargs [:slots] with-scope scope)]
     (apply rsc-store/store! store key resource (flatten (seq kwargs)))))
 
 (defn send! [connection signal & args]
