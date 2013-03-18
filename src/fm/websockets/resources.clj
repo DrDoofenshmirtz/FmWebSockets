@@ -36,7 +36,7 @@
 
 (defn send-to! [connection keys signal & args]
   (assert connection)
-  (apply rsc-store/send-to! (resource-store connection) signal args))
+  (apply rsc-store/send-to! (resource-store connection) keys signal args))
 
 (defn remove! [connection & keys]
   (assert connection)
