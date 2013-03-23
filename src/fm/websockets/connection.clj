@@ -7,8 +7,7 @@
     [fm.websockets.protocol :as prot])
   (:use
     [clojure.contrib.logging :only (debug)]
-    [fm.core.exception :only (exception-chain caused-by)]
-    [fm.core.threading :only (guarded-access with-guarded)])
+    [fm.core.exception :only (exception-chain caused-by)])
   (:import
     (java.util UUID)
     (java.net Socket)
@@ -55,19 +54,16 @@
     (catch Exception x
       (throw-connection-failed socket x))))
 
-(defn- output-accessor [^Socket socket accessor]
-  (fn [& args]
-    (try
-      (apply accessor args)
-      (catch Exception x
-        (if (.isClosed socket)
-          (throw-connection-closed socket x)
-          (throw x))))))
-
-(defn- guarded-output [socket output-stream]
-  (let [guarded-output (guarded-access output-stream)]
-    (fn [accessor & args]
-      (apply guarded-output (output-accessor socket accessor) args))))
+(defn- guarded-output [^Socket socket output-stream]
+  (let [guard (Object.)]
+    (fn [output-accessor]
+      (locking guard
+        (try
+          (output-accessor output-stream)
+          (catch Exception x
+            (if (.isClosed socket)
+              (throw-connection-closed socket x)
+              (throw x))))))))
 
 (defn- make-output [socket output-stream]
   (vary-meta (guarded-output socket output-stream) assoc :type ::output))
@@ -166,6 +162,13 @@
 (defmethod output :default [target]
   (throw (IllegalArgumentException. "Illegal output target!")))
 
+(defmacro with-output-of
+  "Evaluates the given body with the target's output bound to '%'."
+  {:private true} 
+  [target & body]
+ `(let [output# (output ~target)]
+    (output# (fn [~'%] ~@body))))
+
 (defmulti send-content
   "Sends content to an output stream using a send method suitable
   for the content type."
@@ -182,7 +185,7 @@
   "Sends a collection of contents to the given target.
   The target may be a connection or its ouput."
   [target content & contents]
-  (with-guarded (output target)
+  (with-output-of target
     (doseq [content (cons content contents)]
       (send-content % content))))
 
@@ -194,7 +197,7 @@
   pong message.
   Returns a collection of [pong-message connection-with-remaining-messages]."
   [connection]
-  (let [ping-content (with-guarded (output connection) (prot/send-ping %))]
+  (let [ping-content (with-output-of connection (prot/send-ping %))]
     (debug (format
              "Sent ping content: %s. Waiting for pong..."
              (print-str ping-content)))
@@ -210,3 +213,4 @@
                "Received pong content: %s."
                (print-str pong-message)))
       [pong-message (assoc connection :messages messages)])))
+
