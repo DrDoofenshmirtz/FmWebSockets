@@ -102,9 +102,7 @@
 
 (defn- dispatch-request [connection request-handler request]
   (let [{:keys [id method params]} request]
-    (debug (format
-             "Dispatch request {id: %s, method: %s, params: %s}..."
-             id method params))
+    (debug (format "Dispatch request {id: %s, method: %s}..." id method))
     (check-request-id (:id connection) id)
     (let [result (try
                    (result

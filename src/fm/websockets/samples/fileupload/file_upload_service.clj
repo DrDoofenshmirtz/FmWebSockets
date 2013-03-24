@@ -70,11 +70,12 @@
     (remove! connection id)
     nil))
 
-(defn upload-file [connection upload]
-  (debug (format "upload-file{upload: %s}" upload))
-  (let [{state :state} upload]
+(defn upload-file [connection upload]  
+  (let [{:keys [id state]} upload]
+    (debug (format "upload-file{%s %s}" id state))
     (case state
       "STARTED"     (start-upload connection upload)
       "IN_PROGRESS" (continue-upload connection upload)
       "DONE"        (finish-upload connection upload)
       "ABORTED"     (abort-upload connection upload))))
+
