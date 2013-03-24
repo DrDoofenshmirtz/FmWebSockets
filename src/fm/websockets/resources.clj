@@ -64,9 +64,10 @@
 (defn request-handler [request-handler]
   (assert request-handler)
   (fn [connection method params]
-    (let [result (request-handler connection method params)]
-      (request-expired! connection)
-      result)))
+    (try
+      (request-handler connection method params)
+      (finally
+        (request-expired! connection)))))
 
 (defn- with-store [connection resource-store]
   (assert connection)
@@ -78,7 +79,9 @@
   (assert store-constructor)
   (fn [connection]
     (let [store      (store-constructor connection)
-          connection (with-store connection store)
-          connection (connection-handler connection)]
-      (connection-expired! connection)
-      connection)))
+          connection (with-store connection store)]
+      (try
+        (connection-handler connection)
+        (finally
+          (connection-expired! connection))))))          
+
