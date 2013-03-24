@@ -111,15 +111,16 @@
   (if-let [mask-bytes (read-byte-array input-stream 4)]
     (assoc fragment :mask-bytes mask-bytes)))
 
-(defn- indexed [coll]
-  (partition 2 (interleave (range) coll)))
-
-(defn- masked-byte-array [byte-array mask-bytes]
-  (let [mask-bytes (take (alength byte-array) (cycle mask-bytes))]
-    (doseq [[index mask-byte] (indexed mask-bytes)]
-      (aset-byte byte-array
-                 index
-                 (bit-xor (aget byte-array index) mask-byte)))
+(defn- masked-byte-array [^bytes byte-array ^bytes mask-bytes]
+  (let [array-length (alength byte-array) 
+        mask-length  (alength mask-bytes)]
+    (loop [index 0]
+      (when (< index array-length)
+        (aset-byte byte-array
+                   index
+                   (bit-xor (int (aget byte-array index)) 
+                            (int (aget mask-bytes (mod index mask-length)))))
+        (recur (inc index))))
     byte-array))
 
 (defn- read-payload [fragment input-stream]
