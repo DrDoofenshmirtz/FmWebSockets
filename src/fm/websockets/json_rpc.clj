@@ -115,7 +115,7 @@
   (debug "...done."))
 
 (defn- process-message [connection request-handler message]
-  (if-let [{:id id :as request} (read-request message)]
+  (if-let [{id :id :as request} (read-request message)]
     (let [{connection :connection :as result} 
           (dispatch-request connection request-handler request)]
       (send-response connection (response id result))
