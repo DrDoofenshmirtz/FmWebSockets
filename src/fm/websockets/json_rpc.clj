@@ -86,9 +86,6 @@
        :error? (if error? true false)}
       {:type ::result})))
 
-(defn- complete? [result]
-  (contains? result :return-value))
-
 (defmethod result :default [connection & args]
   (let [[return-value error?] args]
     (make-result connection return-value error?)))
@@ -118,19 +115,19 @@
   (debug "...done."))
 
 (defn- process-message [connection request-handler message]
-  (if-let [{:keys [id] :as request} (read-request message)]
-    (let [result (dispatch-request connection request-handler request)]
+  (if-let [{:id id :as request} (read-request message)]
+    (let [{connection :connection :as result} 
+          (dispatch-request connection request-handler request)]
       (send-response connection (response id result))
-      result)
+      connection)
     (do
       (debug (format "Skipped message {opcode: %s}." (opcode message)))
-      (make-result connection))))
+      connection)))
 
 (defn- message-handler [request-handler]
   (fn [connection message]
     (debug "Handle next message...")
-    (let [{connection :connection}
-          (process-message connection request-handler message)]
+    (let [connection (process-message connection request-handler message)]
       (debug "...done.")
       connection)))
 
