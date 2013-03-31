@@ -149,12 +149,16 @@
       (log/debug "...done.")
       connection)))
 
-(defn connection-handler []
-  (fn [{id :id :as connection}]
-    (log/debug (format "Acknowledge connection '%s'..." id))
-    (send-notification connection "connectionAcknowledged" id)
-    (log/debug "...done.")
-    connection))
+(defn connection-handler [message->request object->content]
+  (assert message->request)
+  (assert object->content)
+  (fn [connection]
+    (let [{id :id :as connection} 
+          (with-rpc-format connection message->request object->content)]
+      (log/debug (format "Acknowledge connection '%s'..." id))
+      (send-notification connection "connectionAcknowledged" id)
+      (log/debug "...done.")
+      connection)))
 
 (defn map-dispatcher [dispatch-map procedure-name-conversion]
   (assert dispatch-map)
