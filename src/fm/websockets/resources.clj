@@ -4,7 +4,8 @@
   fm.websockets.resources
   (:require
     [fm.resources.store :as rsc-store]
-    [fm.resources.slot-extensions :as rsc-slot-ext]))
+    [fm.resources.slot-extensions :as rsc-slot-ext]
+    [fm.websockets.connection :as conn]))
 
 (defn with-resource-store [connection resource-store]
   (assert connection)
@@ -70,19 +71,23 @@
 (defn request-handler [request-handler]
   (assert request-handler)
   (fn [connection method params]
-    (try
-      (request-handler connection method params)
-      (finally
-        (request-expired! connection)))))
+    (let [stripped (conn/drop-messages connection)]
+      (try
+        (request-expired! (request-handler connection method params))
+        (catch Throwable error
+          (request-expired! stripped)
+          (throw error))))))
 
 (defn connection-handler [connection-handler store-constructor]
   (assert connection-handler)
   (assert store-constructor)
   (fn [connection]
     (let [store      (store-constructor connection)
-          connection (with-resource-store connection store)]
+          connection (with-resource-store connection store)
+          stripped   (conn/drop-messages connection)]
       (try
-        (connection-handler connection)
-        (finally
-          (connection-expired! connection))))))          
+        (connection-expired! (connection-handler connection))
+        (catch Throwable error
+          (connection-expired! stripped)
+          (throw error))))))          
 
