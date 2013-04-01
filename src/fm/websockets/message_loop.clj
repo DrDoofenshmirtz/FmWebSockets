@@ -25,8 +25,8 @@
           (throw x))))))
 
 (defn connection-handler
-  "Creates a connection handler that loops over the messages of a connection, 
-  invoking the given message handler for each received message. 
+  "Creates a connection handler that loops over the messages provided by a 
+  connection, invoking the given message handler for each received message. 
   
   A connection handler is a function that accepts a connection as its single 
   argument and and yields a connection as return value.
@@ -40,3 +40,4 @@
   (assert (not (nil? message-handler)))
   (fn [connection]
     (dispatch-messages connection message-handler)))
+
