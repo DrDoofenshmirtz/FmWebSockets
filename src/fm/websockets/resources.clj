@@ -68,26 +68,22 @@
   (assert store)
   (rsc-slot-ext/scope-expired! store :application))
 
-(defn request-handler [request-handler]
-  (assert request-handler)
-  (fn [connection method params]
-    (let [stripped (conn/drop-messages connection)]
+(defn- with-scope-expiration [handler scope]
+  (assert (not (nil? handler)))
+  (assert (valid-scope? scope))
+  (fn [connection & args]
+    (let [store (resource-store connection)]
       (try
-        (request-expired! (request-handler connection method params))
-        (catch Throwable error
-          (request-expired! stripped)
-          (throw error))))))
+        (apply handler connection args)
+        (finally
+          (rsc-slot-ext/scope-expired! store scope))))))
+
+(defn request-handler [request-handler]
+  (with-scope-expiration request-handler :request))
 
 (defn connection-handler [connection-handler store-constructor]
   (assert connection-handler)
   (assert store-constructor)
-  (fn [connection]
-    (let [store      (store-constructor connection)
-          connection (with-resource-store connection store)
-          stripped   (conn/drop-messages connection)]
-      (try
-        (connection-expired! (connection-handler connection))
-        (catch Throwable error
-          (connection-expired! stripped)
-          (throw error))))))          
+  (comp (with-scope-expiration connection-handler :connection)
+        #(with-resource-store % (store-constructor %))))
 
