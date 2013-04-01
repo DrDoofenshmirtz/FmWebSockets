@@ -1,10 +1,22 @@
 (ns
-  ^{:doc "Resource management support for WebSocket connections."
+  ^{:doc "Resource management support for HTML5 WebSocket connections."
     :author "Frank Mosebach"}
   fm.websockets.resources
   (:require
     [fm.resources.store :as rsc-store]
     [fm.resources.slot-extensions :as rsc-slot-ext]))
+
+(defn with-resource-store [connection resource-store]
+  (assert connection)
+  (assert resource-store)
+  (assoc connection ::resource-store resource-store))
+
+(defn resource-store [connection]
+  (assert connection)
+  (if-let [resource-store (::resource-store connection)]
+    resource-store
+    (throw (IllegalStateException.
+             "Connection does not have a resource store!"))))
 
 (def ^{:private true} valid-scopes #{:request :connection :application})
 
@@ -12,12 +24,6 @@
 
 (defn- valid-scope? [scope]
   (contains? valid-scopes scope))
-
-(defn- resource-store [connection]
-  (if-let [resource-store (::resource-store connection)]
-    resource-store
-    (throw (IllegalStateException.
-             "Connection does not have a resource store!"))))
 
 (defn- with-scope [slots scope]
   (rsc-slot-ext/with-scope slots scope ordered-scopes))
@@ -69,17 +75,12 @@
       (finally
         (request-expired! connection)))))
 
-(defn- with-store [connection resource-store]
-  (assert connection)
-  (assert resource-store)
-  (assoc connection ::resource-store resource-store))
-
 (defn connection-handler [connection-handler store-constructor]
   (assert connection-handler)
   (assert store-constructor)
   (fn [connection]
     (let [store      (store-constructor connection)
-          connection (with-store connection store)]
+          connection (with-resource-store connection store)]
       (try
         (connection-handler connection)
         (finally
