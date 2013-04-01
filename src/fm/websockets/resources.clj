@@ -19,9 +19,9 @@
     (throw (IllegalStateException.
              "Connection does not have a resource store!"))))
 
-(def ^{:private true} valid-scopes #{:request :connection :application})
-
 (def ^{:private true} ordered-scopes [:request :connection :application])
+
+(def ^{:private true} valid-scopes (set ordered-scopes))
 
 (defn- valid-scope? [scope]
   (contains? valid-scopes scope))
