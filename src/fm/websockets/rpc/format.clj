@@ -1,14 +1,14 @@
 (ns
-  ^{:doc "RPC formats for HTML5 WebSocket connections."
+  ^{:doc "Pluggable RPC formats for HTML5 WebSocket connections."
     :author "Frank Mosebach"}
   fm.websockets.rpc.format)
 
 (defmacro declare-format
   ([id]
-   `(declare-format ~id ~(symbol (str *ns*))))
-  ([id ns]
+   `(declare-format ~(symbol (str *ns*)) ~id))
+  ([ns id]
    `(def ~(symbol (str *ns*) "rpc-format") 
-          {:id ~(keyword (str *ns*) (name id)) :ns '~ns})))
+          {:id ~(keyword (str ns) (name id)) :ns '~ns})))
 
 (defn use-format [{ns :ns :as rpc-format}]
   (if (nil? ns)
@@ -19,8 +19,8 @@
     (require ns))
   rpc-format)
 
-(defn- format-id [{id :id} & args]
-  id)
+(defn- rpc-format [rpc-format & _]
+  rpc-format)
 
 (defmulti message->request rpc-format)
 
