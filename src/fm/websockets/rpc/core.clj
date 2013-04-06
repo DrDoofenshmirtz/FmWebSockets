@@ -6,31 +6,13 @@
     [clojure.contrib.logging :as log]
     [fm.core.hyphenate :as hy]
     [fm.websockets.connection :as conn]
-    [fm.websockets.protocol :as prot]))
+    [fm.websockets.protocol :as prot]
+    [fm.websockets.rpc.format :as fmt]))
 
-(defn- safe-message->request [message->request]
-  (fn [message]
-    (try
-      (message->request message)
-      (catch Exception x
-        (log/fatal "Conversion from message to rpc request failed!" x)
-        nil))))
-
-(defn- safe-object->content [object->content]
-  (fn [object]
-    (try
-      (object->content object)
-      (catch Exception x
-        (log/fatal "Conversion from object to rpc content failed!" x)
-        nil))))
-
-(defn with-rpc-format [connection message->request object->content]
+(defn with-rpc-format [connection rpc-format]
   (assert connection)
-  (assert message->request)
-  (assert object->content)
-  (assoc connection ::rpc-format 
-                    {:message->request (safe-message->request message->request)
-                     :object->content  (safe-object->content object->content)}))
+  (assert rpc-format)
+  (assoc connection ::rpc-format rpc-format))
 
 (defn rpc-format [connection]
   (assert connection)
@@ -39,10 +21,20 @@
     (throw (IllegalStateException. "Connection does not have an rpc format!"))))
 
 (defn message->request [connection message]
-  ((-> connection rpc-format :message->request) message))
+  (assert connection)
+  (fmt/message->request (rpc-format connection) message))
 
-(defn object->content [connection object]
-  ((-> connection rpc-format :object->content) object))
+(defn result->content [connection id result]
+  (assert connection)
+  (fmt/result->content (rpc-format connection) id result))
+
+(defn error->content [connection id error]
+  (assert connection)
+  (fmt/error->content (rpc-format connection) id error))
+
+(defn notification->content [connection name args]
+  (assert connection)
+  (fmt/notification->content (rpc-format connection) name args))
 
 (defn send-object [connection object]
   (assert connection)
@@ -50,13 +42,16 @@
     (conn/send connection content)))
 
 (defn send-result [connection id result]
-  (send-object connection {:id id :result result :error nil}))
+  (if-let [content (result->content connection id result)]
+    (conn/send connection content)))
 
 (defn send-error [connection id error]
-  (send-object connection {:id id :result nil :error error}))
+  (if-let [content (error->content connection id error)]
+    (conn/send connection content)))
 
-(defn send-notification [connection method & params]
-  (send-object connection {:id nil :method method :params params}))
+(defn send-notification [connection name & args]
+  (if-let [content (notification->content connection name args)]
+    (conn/send connection content)))
 
 (defn- check-request-id [connection-id request-id]
   (if-not (.startsWith (str request-id) (str connection-id))
