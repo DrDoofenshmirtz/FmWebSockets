@@ -150,12 +150,11 @@
   (log/debug "...done.")
   connection)
 
-(defn connection-handler [message->request object->content]
-  (assert message->request)
-  (assert object->content)
+(defn connection-handler [rpc-format]
+  (assert rpc-format)
   (fn [connection]
     (-> connection
-        (with-rpc-format message->request object->content)
+        (with-rpc-format rpc-format)
         acknowledge-connection)))
 
 (defn map-dispatcher [dispatch-map procedure-name-conversion]
