@@ -7,7 +7,8 @@
   fm.websockets.rpc.request
   (:require
     [clojure.contrib.logging :as log]
-    [fm.core.hyphenate :as hy]))
+    [fm.core.hyphenate :as hy]
+    [fm.websockets.rpc.types :as types]))
 
 (def ^{:dynamic true :private true} *connection* nil)
 
@@ -16,7 +17,25 @@
     (throw (IllegalStateException. "No connection in current context!"))
     *connection*))
 
-;; TODO: create result type.
+(defn result [connection value error?]
+  (reify     
+    types/Result
+    (connection [this]
+      connection)
+    (value [this]
+      value)
+    (error? [this]
+      error?)    
+    clojure.lang.IDeref
+    (deref [this]
+      value)))
+
+(defn succes [connection value]
+  (result connection value false))
+
+(defn failure [connection value]
+  (result connection value true))
+
 (defn call-procedure [connection request procedure]
   (let [{args :args} request]
     (binding [*connection* connection]
@@ -38,7 +57,8 @@
       (call-procedure connection request procedure)
       (throw-undefined-procedure))))
 
-;; TODO: make it work (wtf)!
+(comment 
+
 (defn map-router [route-map name-conversion]
   (assert route-map)
   (assert name-conversion)
@@ -56,3 +76,4 @@
   (require ns-name)
   (map-router (ns-interns ns-name) (comp symbol hy/hyphenate)))
 
+)
