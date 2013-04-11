@@ -71,25 +71,19 @@
   (fn [connection request]
     (if-let [procedure (procedure-mapping connection request)]
       (call-procedure connection request procedure)
-      (throw-undefined-procedure))))
-
-(comment 
+      (throw-undefined-procedure request))))
 
 (defn map-router [route-map name-conversion]
   (assert route-map)
   (assert name-conversion)
   (fn [connection request]
-    (let [procedure-name (name-conversion method)]
-      (if-let [procedure (dispatch-map procedure-name)]
-        (apply procedure connection params)
-        (let [error-message (format
-                              "Undefined procedure: '%s'!"
-                              procedure-name)]
-          (log/fatal error-message)
-          (throw (IllegalArgumentException. error-message)))))))
+    (-> request 
+        :name 
+        name-conversion 
+        route-map 
+        (or (throw-undefined-procedure request)))))
 
 (defn ns-router [ns-name]
   (require ns-name)
   (map-router (ns-interns ns-name) (comp symbol hy/hyphenate)))
 
-)
