@@ -157,20 +157,3 @@
         (with-rpc-format rpc-format)
         acknowledge-connection)))
 
-(defn map-dispatcher [dispatch-map procedure-name-conversion]
-  (assert dispatch-map)
-  (assert procedure-name-conversion)
-  (fn [connection {:keys [method params]}]
-    (let [procedure-name (procedure-name-conversion method)]
-      (if-let [procedure (dispatch-map procedure-name)]
-        (apply procedure connection params)
-        (let [error-message (format
-                              "Undefined procedure: '%s'!"
-                              procedure-name)]
-          (log/fatal error-message)
-          (throw (IllegalArgumentException. error-message)))))))
-
-(defn ns-dispatcher [ns-name]
-  (require ns-name)
-  (map-dispatcher (ns-interns ns-name) (comp symbol hy/hyphenate)))
-
