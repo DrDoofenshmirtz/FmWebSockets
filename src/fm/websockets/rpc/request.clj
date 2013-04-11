@@ -12,13 +12,23 @@
 
 (def ^{:dynamic true :private true} *connection* nil)
 
-(defn connection []
+(defn- ensure-connection []
   (if (nil? *connection*)
     (throw (IllegalStateException. "No connection in current context!"))
-    *connection*))
+    true))
+
+(defn connection []
+  (ensure-connection)
+  *connection*)
+
+(defn alter-connection! [func & args]
+  (ensure-connection)
+  (set! *connection* (apply func *connection* args)))
 
 (defn result [connection value error?]
-  (reify     
+  (assert connection)
+  (reify
+    
     types/Result
     (connection [this]
       connection)
@@ -26,11 +36,12 @@
       value)
     (error? [this]
       error?)    
+    
     clojure.lang.IDeref
     (deref [this]
       value)))
 
-(defn succes [connection value]
+(defn success [connection value]
   (result connection value false))
 
 (defn failure [connection value]
@@ -39,7 +50,12 @@
 (defn call-procedure [connection request procedure]
   (let [{args :args} request]
     (binding [*connection* connection]
-      (apply procedure args))))
+      (try
+        (let [value (apply procedure args)]
+          (success *connection* value))        
+        (catch Throwable error
+          (failure *connection* {:error   (-> error class .getName)
+                                 :message (.getMessage error)}))))))
 
 (defn- throw-undefined-procedure [{:keys [id name]}]
   (let [error-message (str "Undefined procedure for request {:id "
