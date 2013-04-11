@@ -13,9 +13,12 @@
 (defn connection-handler []
   (rpc/connection-handler rpc-format))
 
+(defn- request [{:keys [method params] :as json-request}]
+  (assoc json-request :name method :args params))
+
 (defmethod fmt/message->request rpc-format [_ message]
   (when (and message (prot/text-message? message))
-    (json/read-json (prot/message-content message))))
+    (-> message prot/message-content json/read-json request)))
 
 (defmethod fmt/result->content rpc-format [_ id result]
   (json/json-str {:id id :result (if (nil? result) true result) :error nil}))
