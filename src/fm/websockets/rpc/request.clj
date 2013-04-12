@@ -41,10 +41,27 @@
     (deref [this]
       value)))
 
-(defn success [connection value]
+(defn- value-type [connection value]
+  (type value))
+
+(defn- throwable->value [^Throwable throwable]
+  {:error   (-> throwable class .getName)
+   :message (.getMessage throwable)})
+
+(defmulti success value-type)
+
+(defmethod success Throwable [connection throwable]
+  (success connection (throwable->value throwable)))
+
+(defmethod success :default [connection value]
   (result connection value false))
 
-(defn failure [connection value]
+(defmulti failure value-type)
+
+(defmethod failure Throwable [connection throwable]
+  (failure connection (throwable->value throwable)))
+
+(defmethod failure :default [connection value]
   (result connection value true))
 
 (defn call-procedure [connection request procedure]
@@ -54,8 +71,7 @@
         (let [value (apply procedure args)]
           (success *connection* value))        
         (catch Throwable error
-          (failure *connection* {:error   (-> error class .getName)
-                                 :message (.getMessage error)}))))))
+          (failure *connection* error))))))
 
 (defn- throw-undefined-procedure [{:keys [id name]}]
   (let [error-message (str "Undefined procedure for request {:id "
