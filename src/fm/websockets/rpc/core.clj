@@ -4,10 +4,11 @@
   fm.websockets.rpc.core
   (:require
     [clojure.contrib.logging :as log]
-    [fm.core.hyphenate :as hy]
     [fm.websockets.connection :as conn]
     [fm.websockets.protocol :as prot]
-    [fm.websockets.rpc.format :as fmt]))
+    [fm.websockets.rpc.format :as fmt]
+    [fm.websockets.rpc.request :as req]
+    [fm.websockets.rpc.types :as types]))
 
 (defn with-rpc-format [connection rpc-format]
   (assert connection)
@@ -36,11 +37,6 @@
   (assert connection)
   (fmt/notification->content (rpc-format connection) name args))
 
-(defn send-object [connection object]
-  (assert connection)
-  (if-let [content (object->content connection object)]
-    (conn/send connection content)))
-
 (defn send-result [connection id result]
   (if-let [content (result->content connection id result)]
     (conn/send connection content)))
@@ -58,80 +54,37 @@
     (throw (IllegalArgumentException.
              (format "Illegal request id: '%s'!" request-id)))))
 
-(defn- result-type [connection & args]
-  (assert connection)
-  (type (first args)))
-  
-(defmulti result result-type)
-
-(defmethod result ::result [connection & args]
-  (first args))
-
-(defmethod result Throwable [connection & args]
-  (let [[throwable error?] args]
-    (result
-      connection
-      {:error (-> throwable class .getName)
-       :message (.getMessage throwable)}
-      error?)))
-
-(defmethod result nil [connection & args]
-  (let [[return-value error?] args]
-    (result connection (if error? false true) error?)))
-
-(defn- make-result
-  ([connection]
-    (with-meta
-      {:connection connection
-       :error? false}
-      {:type ::result}))
-  ([connection return-value]
-    (with-meta
-      {:connection connection
-       :return-value return-value
-       :error? false}
-      {:type ::result}))
-  ([connection return-value error?]
-    (with-meta
-      {:connection connection
-       :return-value return-value
-       :error? (if error? true false)}
-      {:type ::result})))
-
-(defmethod result :default [connection & args]
-  (let [[return-value error?] args]
-    (make-result connection return-value error?)))
-
-(defn- response [id result]
-  (let [{:keys [return-value error?]} result
-        response (if error?
-                   {:result nil :error return-value}
-                   {:result return-value :error nil})]
-    (with-meta (assoc response :id id) {:type ::response})))
-
 (defn- dispatch-request [connection request-handler request]
-  (let [{:keys [id method]} request]
-    (log/debug (format "Dispatch request {id: %s, method: %s}..." id method))
+  (let [{:keys [id name]} request]
+    (log/debug (format "Dispatch request {id: %s name: %s}..." id name))
     (check-request-id (:id connection) id)
-    (let [result (try
-                   (result
-                     connection
-                     (request-handler connection request))
-                   (catch Throwable error (result connection error true)))]
-      (log/debug "...done.")
+    (let [stripped (conn/drop-messages connection)
+          result   (try 
+                     (request-handler connection request)
+                     (log/debug "...done.")
+                     (catch Throwable error
+                       (when (conn/caused-by-closed-connection? error)
+                         (throw error))
+                       (log/fatal "Failed to dispatch request!" error)
+                       (req/failure stripped error)))]      
       result)))
 
-(defn- send-response [connection response]
-  (log/debug "Send response...")
-  (send-object connection response)
-  (log/debug "...done."))
+(defn- send-response [id result]
+  (let [connection (types/connection result)]
+    (log/debug "Send response...")
+    (try 
+      ((if (types/error? result) send-error send-result) connection id @result)
+      (log/debug "...done.")
+      (catch Throwable error
+        (when (conn/caused-by-closed-connection? error)
+          (throw error))
+        (log/fatal "Failed to send response!" error)))    
+    connection))
 
 (defn- process-message [connection request-handler message]
   (if-let [{id :id :as request} (message->request connection message)]
-    (let [{connection :connection :as result} 
-          (dispatch-request connection request-handler request)]
-      (send-response connection (response id result))
-      connection)
+    (let [result (dispatch-request connection request-handler request)]
+      (send-response id result))
     (do
       (log/debug (format "Skipped message {opcode: %s}." (prot/opcode message)))
       connection)))
