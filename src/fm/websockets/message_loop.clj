@@ -17,12 +17,12 @@
         (if message
           (recur (message-handler connection message) message-handler)
           connection))
-      (catch Exception x
-        (if (conn/caused-by-closed-connection? x)
+      (catch Throwable error
+        (if (conn/caused-by-closed-connection? error)
           (let [connection (conn/drop-messages connection)]
             (log/debug (format "WebSocket connection closed: %s." connection))
             connection)
-          (throw x))))))
+          (throw error))))))
 
 (defn connection-handler
   "Creates a connection handler that loops over the messages provided by a 
