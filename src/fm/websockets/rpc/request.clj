@@ -8,7 +8,8 @@
   (:require
     [clojure.contrib.logging :as log]
     [fm.core.hyphenate :as hy]
-    [fm.websockets.rpc.types :as types]))
+    [fm.websockets.rpc.types :as types]
+    [fm.websockets.connection :as conn]))
 
 (def ^{:dynamic true :private true} *connection* nil)
 
@@ -71,7 +72,9 @@
         (let [value (apply procedure args)]
           (success *connection* value))        
         (catch Throwable error
-          (failure *connection* error))))))
+          (if (conn/caused-by-closed-connection? error)
+            (throw error)
+            (failure *connection* error)))))))
 
 (defn- throw-undefined-procedure [{:keys [id name]}]
   (let [error-message (str "Undefined procedure for request {:id "
