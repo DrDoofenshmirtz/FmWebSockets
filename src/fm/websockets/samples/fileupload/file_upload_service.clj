@@ -1,10 +1,8 @@
 (ns fm.websockets.samples.fileupload.file-upload-service
-  (:use
-    [clojure.contrib.logging :only (debug)]
-    [fm.core.bytes :only (signed-byte)]
-    [fm.resources.core :only (expired)]
-    [fm.websockets.json-rpc :only (result)]
-    [fm.websockets.resources :only (store! get-resource send-to! remove!)])
+  (:require
+    [clojure.contrib.logging :as log]
+    [fm.resources.core :as rsc]
+    [fm.websockets.resources :as ws-rsc])
   (:import
     (java.io File FileOutputStream IOException)
     (java.util UUID)))
@@ -23,13 +21,13 @@
       (.delete upload-directory))))
 
 (defn- close! [{close! ::close! :as resource}]
-  (debug (format "close!{resource: %s}" resource))
+  (log/debug (format "close!{resource: %s}" resource))
   (close! resource))
 
 (def ^{:private true} slots {::done (fn [resource]
                                       (-> resource
                                           (assoc ::close! save)
-                                          expired))})
+                                          rsc/expired))})
 
 (defn- create-upload-directory [id]
   (let [directory (File. (System/getProperty "user.home") "Uploads")
@@ -47,13 +45,16 @@
   (let [{file-name :fileName data :data} upload
         id (str (UUID/randomUUID))
         {output ::output :as resource} (make-resource id file-name)]
-    (store! connection id resource :connection :close! close! :slots slots)
+    (ws-rsc/store! connection id resource 
+                   :connection 
+                   :close! close! 
+                   :slots  slots)
     (.write output (data-bytes data))
     id))
 
 (defn- continue-upload [connection upload]
   (let [{:keys [id data]} upload
-        {output ::output :as resource} (get-resource connection id)]
+        {output ::output :as resource} (ws-rsc/get-resource connection id)]
     (if-not resource
       (throw (IllegalStateException.
                "Upload failed (file has been closed)!")))
@@ -62,17 +63,17 @@
 
 (defn- finish-upload [connection upload]
   (let [{id :id} upload]
-    (send-to! connection [id] ::done)
+    (ws-rsc/send-to! connection [id] ::done)
     nil))
 
 (defn- abort-upload [connection upload]
   (let [{id :id} upload]
-    (remove! connection id)
+    (ws-rsc/remove! connection id)
     nil))
 
 (defn upload-file [connection upload]  
   (let [{:keys [id state]} upload]
-    (debug (format "upload-file{%s %s}" id state))
+    (log/debug (format "upload-file{%s %s}" id state))
     (case state
       "STARTED"     (start-upload connection upload)
       "IN_PROGRESS" (continue-upload connection upload)
