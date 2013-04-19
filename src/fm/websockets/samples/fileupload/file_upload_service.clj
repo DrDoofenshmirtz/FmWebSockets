@@ -2,7 +2,8 @@
   (:require
     [clojure.contrib.logging :as log]
     [fm.resources.core :as rsc]
-    [fm.websockets.resources :as ws-rsc])
+    [fm.websockets.resources :as wsr]
+    [fm.websockets.rpc.request :as req])
   (:import
     (java.io File FileOutputStream IOException)
     (java.util UUID)))
@@ -41,42 +42,42 @@
         output (FileOutputStream. file)]
     {::file file ::output output ::close! delete}))
 
-(defn- start-upload [connection upload]
+(defn- start-upload [upload]
   (let [{file-name :fileName data :data} upload
         id (str (UUID/randomUUID))
         {output ::output :as resource} (make-resource id file-name)]
-    (ws-rsc/store! connection id resource 
-                   :connection 
-                   :close! close! 
-                   :slots  slots)
+    (wsr/store! (req/connection) id resource 
+                :connection 
+                :close! close! 
+                :slots  slots)
     (.write output (data-bytes data))
     id))
 
-(defn- continue-upload [connection upload]
+(defn- continue-upload [upload]
   (let [{:keys [id data]} upload
-        {output ::output :as resource} (ws-rsc/get-resource connection id)]
+        {output ::output :as resource} (wsr/get-resource (req/connection) id)]
     (if-not resource
       (throw (IllegalStateException.
                "Upload failed (file has been closed)!")))
     (.write output (data-bytes data))
     id))
 
-(defn- finish-upload [connection upload]
+(defn- finish-upload [upload]
   (let [{id :id} upload]
-    (ws-rsc/send-to! connection [id] ::done)
+    (wsr/send-to! (req/connection) [id] ::done)
     nil))
 
-(defn- abort-upload [connection upload]
+(defn- abort-upload [upload]
   (let [{id :id} upload]
-    (ws-rsc/remove! connection id)
+    (wsr/remove! (req/connection) id)
     nil))
 
-(defn upload-file [connection upload]  
+(defn upload-file [upload]  
   (let [{:keys [id state]} upload]
     (log/debug (format "upload-file{%s %s}" id state))
     (case state
-      "STARTED"     (start-upload connection upload)
-      "IN_PROGRESS" (continue-upload connection upload)
-      "DONE"        (finish-upload connection upload)
-      "ABORTED"     (abort-upload connection upload))))
+      "STARTED"     (start-upload upload)
+      "IN_PROGRESS" (continue-upload upload)
+      "DONE"        (finish-upload upload)
+      "ABORTED"     (abort-upload upload))))
 
