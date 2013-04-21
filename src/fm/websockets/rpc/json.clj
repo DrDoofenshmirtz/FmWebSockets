@@ -14,7 +14,9 @@
   (rpc/connection-handler rpc-format))
 
 (defn- request [{:keys [method params] :as json-request}]
-  (assoc json-request :name method :args params))
+  (-> json-request 
+      (dissoc :method :params) 
+      (assoc :name method :args params)))
 
 (defmethod fmt/message->request rpc-format [_ message]
   (when (and message (prot/text-message? message))
