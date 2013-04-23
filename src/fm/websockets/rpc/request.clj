@@ -95,12 +95,12 @@
 (defn map-router [route-map name-conversion]
   (assert route-map)
   (assert name-conversion)
-  (fn [connection request]
-    (-> request 
-        :name 
-        name-conversion 
-        route-map 
-        (or (throw-undefined-procedure request)))))
+  (request-router (fn [connection request]
+                    (-> request 
+                        :name 
+                        name-conversion 
+                        route-map 
+                        (or (throw-undefined-procedure request))))))
 
 (defn ns-router [ns-name]
   (require ns-name)
