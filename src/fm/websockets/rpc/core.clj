@@ -58,16 +58,16 @@
   (let [{:keys [id name]} request]
     (log/debug (format "Dispatch request {id: %s name: %s}..." id name))
     (check-request-id (:id connection) id)
-    (let [stripped (conn/drop-messages connection)
-          result   (try 
-                     (request-handler connection request)
-                     (log/debug "...done.")
-                     (catch Throwable error
-                       (when (conn/caused-by-closed-connection? error)
-                         (throw error))
-                       (log/fatal "Failed to dispatch request!" error)
-                       (req/failure stripped error)))]      
-      result)))
+    (let [stripped (conn/drop-messages connection)]
+      (try
+        (let [result (request-handler connection request)]
+          (log/debug "...done.")
+          result)
+        (catch Throwable error
+         (when (conn/caused-by-closed-connection? error)
+           (throw error))
+         (log/fatal "Failed to dispatch request!" error)
+         (req/failure stripped error))))))
 
 (defn- send-response [id result]
   (let [connection (types/connection result)]
