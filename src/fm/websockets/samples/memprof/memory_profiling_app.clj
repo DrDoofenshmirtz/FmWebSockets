@@ -6,27 +6,38 @@
   (:gen-class
     :name fm.websockets.samples.memprof.MemoryProfilingApp
     :main true)
-  (:use
-    [clojure.contrib.def :only (defvar-)]
-    [clojure.contrib.logging :only (debug)]
-    [clojure.contrib.command-line :only (with-command-line)]
-    [fm.websockets.connection :only (ping)]
-    [fm.websockets.server :only (start-up)]
-    [fm.websockets.json-rpc :only (connection-handler ns-dispatcher)]))
+  (:require
+    [clojure.contrib.logging :as log]
+    [clojure.contrib.command-line :as cli]
+    [fm.websockets.rpc.core :as rpc]
+    [fm.websockets.rpc.request :as req]
+    [fm.websockets.rpc.json :as jrpc]
+    [fm.websockets.message-loop :as mloop]
+    [fm.websockets.connection :as conn]
+    [fm.websockets.server :as srv]))
 
-(defvar- service-namespace 'fm.websockets.samples.memprof.memory-profiling-service)
+(def ^{:private true} 
+     service-namespace 'fm.websockets.samples.memprof.memory-profiling-service)
 
-(defn- make-connection-handler []
-  (let [connection-handler (connection-handler (ns-dispatcher service-namespace))]
-    (fn [connection]
-      (ping connection)
-      (connection-handler connection))))
+(def ^{:private true} request-handler (-> service-namespace
+                                          req/ns-router))
+
+(def ^{:private true} message-handler (-> request-handler
+                                          rpc/message-handler))
+
+(def ^{:private true} 
+     connection-handler (-> (comp (mloop/connection-handler message-handler) 
+                                  (jrpc/connection-handler)
+                                  (fn [connection]
+                                    (conn/ping connection)
+                                    connection))))
 
 (defn -main [& args]
-  (with-command-line args
+  (cli/with-command-line args
     "MemoryProfilingApp"
     [[port "The app's server port number" 17500]]
-    (debug (format "Starting MemoryProfilingApp server on port %s..." port))
+    (log/debug (format "Starting MemoryProfilingApp server on port %s..." port))
     (let [port (Integer/parseInt (.trim (str port)) 10)]
-      (start-up port (make-connection-handler))
-      (debug "...done. Waiting for clients..."))))
+      (srv/start-up port connection-handler)
+      (log/debug "...done. Waiting for clients..."))))
+
