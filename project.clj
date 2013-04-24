@@ -20,6 +20,7 @@
   :repositories {"mvn-local" ~local-mvn-repo-path}                 
   :aot [fm.websockets.exceptions
         fm.websockets.rpc.types
+        fm.websockets.samples.counter.counter-app
         fm.websockets.samples.fileupload.file-upload-app]       
   :jar-name "fm-websockets.jar"
   :omit-source false
