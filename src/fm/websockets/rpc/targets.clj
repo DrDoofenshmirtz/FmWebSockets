@@ -19,6 +19,30 @@
    `(def ~(vary-meta (symbol (str name)) merge var-meta target-meta)
           (vary-meta (fn ~name ~@more) merge ~target-meta))))
 
+(defn- operation->keyword [operation]
+  (-> operation str .trim .toLowerCase keyword))
+
+(defn- open [connection open slots args])
+
+(defn- receive [connection receive slots args])
+
+(defn- abort [connection abort slots args])
+
+(defn- close [connection close slots args])
+
+(defn channel [slots]
+  (fn [operation & args]
+    (let [operation (operation->keyword operation)
+          slot      (slots operation)]
+      (when-not slot
+        (throw (IllegalArgumentException. 
+                 (format "Illegal channel operation: '%s'!" operation))))
+      ((case operation
+         :open    open
+         :receive receive
+         :abort   abort
+         :close   close) (req/connection) operation slots args))))
+
 (defmacro defchannel [name & more])
 
 (defn- target-name [request]
