@@ -30,17 +30,13 @@
   {::resource resource
    ::close!   close!})
 
-(defn- update-resource [wrapped-resource resource]
-  (-> wrapped-resource (assoc ::resource resource) rsc/good))
-
-(defn- remove-resource [wrapped-resource close!]
-  (-> wrapped-resource (assoc ::close! close!) rsc/expired))
+(defn- update-resource [wrapped-resource update]
+  (-> wrapped-resource update rsc/good))
 
 (defn- close-resource! [{resource ::resource close! ::close!}]
   (close! resource))
 
-(def ^{:private true} resource-slots {::update update-resource 
-                                      ::remove remove-resource})
+(def ^{:private true} resource-slots {::update update-resource})
 
 (defn- channel-id []
   (str (UUID/randomUUID)))
@@ -74,7 +70,7 @@
 (defn- receive [connection receive slots [id & args]]
   (let [resource (get-resource connection id)
         resource (apply receive resource args)]
-    (wsr/send-to! connection [id] ::update resource)
+    (wsr/send-to! connection [id] ::update #(assoc % ::resource resource))
     (get-resource connection id)
     id))
  
@@ -84,7 +80,16 @@
     nil))
 
 (defn- close [connection close slots [id]]
-  (let [id (check-channel-id id)]))
+  (let [id        (check-channel-id id)
+        resources (wsr/send-to! connection 
+                                [id] 
+                                ::update 
+                                #(assoc % ::close! close))
+        close!    (get-in resources [:contents id :resource ::close!])]
+    (when-not (identical? close close!)
+      (throw (IllegalStateException. "Channel closed or aborted!")))
+    (wsr/remove! connection id)
+    nil))
 
 (defn channel [slots]
   (fn [operation & args]
