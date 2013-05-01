@@ -7,7 +7,11 @@
   fm.websockets.rpc.targets
   (:require
     [fm.core.hyphenate :as hy]
-    [fm.websockets.rpc.request :as req]))
+    [fm.resources.core :as rsc]
+    [fm.websockets.resources :as wsr]
+    [fm.websockets.rpc.request :as req])
+  (:import
+    (java.util UUID)))
 
 (defmacro defaction [name & more]
   (let [[[doc-string? attributes?] more] (split-with (complement sequential?) 
@@ -22,13 +26,65 @@
 (defn- operation->keyword [operation]
   (-> operation str .trim .toLowerCase keyword))
 
-(defn- open [connection open slots args])
+(defn- wrap-resource [resource close!]
+  {::resource resource
+   ::close!   close!})
 
-(defn- receive [connection receive slots args])
+(defn- update-resource [wrapped-resource resource]
+  (-> wrapped-resource (assoc ::resource resource) rsc/good))
 
-(defn- abort [connection abort slots args])
+(defn- remove-resource [wrapped-resource close!]
+  (-> wrapped-resource (assoc ::close! close!) rsc/expired))
 
-(defn- close [connection close slots args])
+(defn- close-resource! [{resource ::resource close! ::close!}]
+  (close! resource))
+
+(def ^{:private true} resource-slots {::update update-resource 
+                                      ::remove remove-resource})
+
+(defn- channel-id []
+  (str (UUID/randomUUID)))
+
+(defn- channel-id? [id]
+  (-> id str .trim .length (> 0)))
+
+(defn- check-channel-id [id]
+  (if-not (channel-id? id)
+    (throw (IllegalArgumentException. (format "Illegal channel id: '%s'!" id))))
+  id)
+
+(defn- get-resource [connection channel-id]
+  (if-let [resource (-> connection 
+                        (wsr/get-resource (check-channel-id channel-id)) 
+                        ::resource)]
+    resource
+    (throw (IllegalStateException. "Channel closed or aborted!"))))
+
+(defn- open [connection open slots args]
+  (let [resource (apply open args)
+        close!   (:abort slots)
+        resource (wrap-resource resource close!)
+        id       (channel-id)]
+    (wsr/store! connection id resource 
+                :connection
+                :close! close-resource! 
+                :slots  resource-slots)
+    id))
+
+(defn- receive [connection receive slots [id & args]]
+  (let [resource (get-resource connection id)
+        resource (apply receive resource args)]
+    (wsr/send-to! connection [id] ::update resource)
+    (get-resource connection id)
+    id))
+ 
+(defn- abort [connection abort slots [id]]
+  (let [id (check-channel-id id)]
+    (wsr/remove! connection id)
+    nil))
+
+(defn- close [connection close slots [id]]
+  (let [id (check-channel-id id)]))
 
 (defn channel [slots]
   (fn [operation & args]
@@ -41,7 +97,7 @@
          :open    open
          :receive receive
          :abort   abort
-         :close   close) (req/connection) operation slots args))))
+         :close   close) (req/connection) slot slots args))))
 
 (defmacro defchannel [name & more])
 
