@@ -84,14 +84,14 @@
     (let [result (apply read *resource* args)]
       (wsr/send-to! connection [id] ::update #(assoc % ::resource *resource*))
       (get-resource connection id)
-      {:id id :result result})))
+      result)))
 
 (defn- write [connection write slots [id & args]]
   (binding [*resource* (get-resource connection id)]
     (let [result (apply write *resource* args)]
       (wsr/send-to! connection [id] ::update #(assoc % ::resource *resource*))
       (get-resource connection id)
-      {:id id :result result})))
+      result)))
 
 (defn- abort [connection abort slots [id]]
   (let [id (check-channel-id id)]
