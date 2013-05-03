@@ -115,8 +115,8 @@
     (let [operation (operation->keyword operation)
           slot      (slots operation)]
       (when-not slot
-        (throw (IllegalArgumentException. 
-                 (format "Illegal channel operation: '%s'!" operation))))
+        (throw (UnsupportedOperationException. 
+                 (format "Channel operation not supported: '%s'!" operation))))
       ((case operation
          :open    open
          :read    read
