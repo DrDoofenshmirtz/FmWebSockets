@@ -5,6 +5,7 @@
     
     :author "Frank Mosebach"}
   fm.websockets.rpc.targets
+  (:refer-clojure :exclude [read])
   (:require
     [fm.core.hyphenate :as hy]
     [fm.resources.core :as rsc]
@@ -67,13 +68,31 @@
                 :slots  resource-slots)
     id))
 
-(defn- receive [connection receive slots [id & args]]
-  (let [resource (get-resource connection id)
-        resource (apply receive resource args)]
-    (wsr/send-to! connection [id] ::update #(assoc % ::resource resource))
-    (get-resource connection id)
-    id))
- 
+(def ^{:private true :dynamic true} *resource* nil)
+
+(defn- ensure-resource []
+  (if (nil? *resource*)
+    (throw (IllegalStateException. "No resource in current context!"))
+    true))
+
+(defn alter-resource! [func & args]
+  (ensure-resource)
+  (set! *resource* (apply func *resource* args)))
+
+(defn- read [connection read slots [id & args]]
+  (binding [*resource* (get-resource connection id)]
+    (let [result (apply read *resource* args)]
+      (wsr/send-to! connection [id] ::update #(assoc % ::resource *resource*))
+      (get-resource connection id)
+      {:id id :result result})))
+
+(defn- write [connection write slots [id & args]]
+  (binding [*resource* (get-resource connection id)]
+    (let [result (apply write *resource* args)]
+      (wsr/send-to! connection [id] ::update #(assoc % ::resource *resource*))
+      (get-resource connection id)
+      {:id id :result result})))
+
 (defn- abort [connection abort slots [id]]
   (let [id (check-channel-id id)]
     (wsr/remove! connection id)
@@ -100,7 +119,8 @@
                  (format "Illegal channel operation: '%s'!" operation))))
       ((case operation
          :open    open
-         :receive receive
+         :read    read
+         :write   write
          :abort   abort
          :close   close) (req/connection) slot slots args))))
 
