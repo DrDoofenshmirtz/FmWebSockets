@@ -21,7 +21,7 @@
                       (assoc attributes? :doc doc-string?)
                       attributes?)
         target-meta {::target {::name `'~name ::type ::action}}]    
-   `(def ~(vary-meta (symbol (str name)) merge var-meta target-meta)
+   `(def ~(vary-meta name merge var-meta target-meta)
           (vary-meta (fn ~name ~@more) merge ~target-meta))))
 
 (defn- wrap-resource [resource close!]
@@ -133,7 +133,7 @@
                       (assoc attributes? :doc doc-string?)
                       attributes?)
         target-meta {::target {::name `'~name ::type ::channel}}]
-   `(def ~(vary-meta (symbol (str name)) merge var-meta target-meta)
+   `(def ~(vary-meta name merge var-meta target-meta)
           (vary-meta (channel (hash-map ~@more)) merge ~target-meta))))
 
 (defn- target-name [request]
