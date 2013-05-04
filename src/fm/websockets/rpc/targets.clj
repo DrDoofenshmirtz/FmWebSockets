@@ -24,9 +24,6 @@
    `(def ~(vary-meta (symbol (str name)) merge var-meta target-meta)
           (vary-meta (fn ~name ~@more) merge ~target-meta))))
 
-(defn- operation->keyword [operation]
-  (-> operation str .trim .toLowerCase keyword))
-
 (defn- wrap-resource [resource close!]
   {::resource resource
    ::close!   close!})
@@ -110,6 +107,9 @@
     (wsr/remove! connection id)
     nil))
 
+(defn- operation->keyword [operation]
+  (-> operation str .trim .toLowerCase keyword))
+
 (defn channel [slots]
   (fn [operation & args]
     (let [operation (operation->keyword operation)
@@ -124,7 +124,17 @@
          :abort abort
          :close close) (req/connection) slot slots args))))
 
-(defmacro defchannel [name & more])
+(def ^{:private true} operation-keys #{:open :read :write :abort :close})
+
+(defmacro defchannel [name & more]
+  (let [[[doc-string? attributes?] more] (split-with (complement operation-keys) 
+                                                     more)
+        var-meta    (if (string? doc-string?)
+                      (assoc attributes? :doc doc-string?)
+                      attributes?)
+        target-meta {::target {::name `'~name ::type ::channel}}]
+   `(def ~(vary-meta (symbol (str name)) merge var-meta target-meta)
+          (vary-meta (channel (hash-map ~@more)) merge ~target-meta))))
 
 (defn- target-name [request]
   (-> request :name symbol hy/hyphenate))
