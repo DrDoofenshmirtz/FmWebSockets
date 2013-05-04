@@ -23,19 +23,23 @@
     {::id id ::file file ::output output}))
 
 (defn- start-upload [file-name data]
+  (log/debug (format "Started upload of file '%s'." file-name))
   (let [{output ::output :as resource} (make-resource file-name)]
     (.write output (data-bytes data))
     resource))
 
-(defn- continue-upload [{output ::output} data]
+(defn- continue-upload [{output ::output file ::file} data]
+  (log/debug (format "Uploading contents of file '%s'..." (.getName file)))
   (.write output (data-bytes data))
   nil)
 
-(defn- finish-upload [{output ::output}]
+(defn- finish-upload [{output ::output file ::file}]
+  (log/debug (format "Upload of file '%s' finished." (.getName file)))
   (.close output)
   nil)
 
 (defn- abort-upload [{output ::output file ::file}]
+  (log/debug (format "Upload of file '%s' aborted!" (.getName file)))
   (.close output)
   (let [upload-directory (.getParentFile file)]
     (.delete file)
