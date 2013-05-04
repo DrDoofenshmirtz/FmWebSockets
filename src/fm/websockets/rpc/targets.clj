@@ -118,11 +118,11 @@
         (throw (UnsupportedOperationException. 
                  (format "Channel operation not supported: '%s'!" operation))))
       ((case operation
-         :open    open
-         :read    read
-         :write   write
-         :abort   abort
-         :close   close) (req/connection) slot slots args))))
+         :open  open
+         :read  read
+         :write write
+         :abort abort
+         :close close) (req/connection) slot slots args))))
 
 (defmacro defchannel [name & more])
 
