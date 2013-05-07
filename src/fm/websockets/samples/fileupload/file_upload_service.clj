@@ -23,10 +23,11 @@
         output (FileOutputStream. file)]
     {::id id ::file file ::output output}))
 
-(defn- start-upload [file-name data]
+(defn- start-upload [file-name & [data]]
   (log/debug (format "Started upload of file '%s'." file-name))
   (let [{output ::output :as resource} (make-resource file-name)]
-    (.write output (data-bytes data))
+    (when data
+      (.write output (data-bytes data)))
     resource))
 
 (defn- continue-upload [{output ::output file ::file} data]
