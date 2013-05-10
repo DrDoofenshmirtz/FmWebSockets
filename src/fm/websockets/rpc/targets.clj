@@ -137,7 +137,7 @@
           (vary-meta (channel (hash-map ~@more)) merge ~target-meta))))
 
 (defn- target-name [request]
-  (-> request :name symbol hy/hyphenate))
+  (-> request :name str hy/hyphenate symbol))
 
 (defn- target-finder [request]
   (let [target-name (target-name request)]
