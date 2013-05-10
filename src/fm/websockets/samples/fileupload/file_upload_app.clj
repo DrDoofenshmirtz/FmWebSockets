@@ -12,7 +12,7 @@
     [fm.resources.store :as rstore]
     [fm.websockets.resources :as rscs]
     [fm.websockets.rpc.core :as rpc]
-    [fm.websockets.rpc.request :as req]
+    [fm.websockets.rpc.targets :as tar]
     [fm.websockets.rpc.json :as jrpc]
     [fm.websockets.message-loop :as mloop]
     [fm.websockets.connection :as conn]
@@ -24,7 +24,7 @@
 (def ^{:private true} resource-store (ref nil))
 
 (def ^{:private true} request-handler (-> service-namespace
-                                          req/ns-router
+                                          tar/target-router
                                           rscs/request-handler))
 
 (def ^{:private true} message-handler (-> request-handler
