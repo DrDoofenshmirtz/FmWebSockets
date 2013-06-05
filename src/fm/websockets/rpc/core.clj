@@ -8,7 +8,9 @@
     [fm.websockets.protocol :as prot]
     [fm.websockets.rpc.format :as fmt]
     [fm.websockets.rpc.request :as req]
-    [fm.websockets.rpc.types :as types]))
+    [fm.websockets.rpc.types :as types])
+  (:import
+    (fm.websockets.exceptions RpcError)))
 
 (defn with-rpc-format [connection rpc-format]
   (assert connection)
@@ -48,6 +50,9 @@
 (defn send-notification [connection name & args]
   (if-let [content (notification->content connection name args)]
     (conn/send connection content)))
+
+(defn throw-rpc-error [data]
+  (throw (RpcError. data)))
 
 (defn- check-request-id [connection-id request-id]
   (if-not (.startsWith (str request-id) (str connection-id))
