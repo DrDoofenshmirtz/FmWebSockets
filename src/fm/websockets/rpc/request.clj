@@ -7,9 +7,12 @@
   fm.websockets.rpc.request
   (:require
     [clojure.contrib.logging :as log]
+    [fm.core.exception :as exc]
     [fm.core.hyphenate :as hy]
     [fm.websockets.rpc.types :as types]
-    [fm.websockets.connection :as conn]))
+    [fm.websockets.connection :as conn])
+  (:import
+    (fm.websockets.exceptions RpcError)))
 
 (def ^{:dynamic true :private true} *connection* nil)
 
@@ -51,6 +54,9 @@
 
 (defmulti success value-type)
 
+(defmethod success RpcError [connection rpc-error]
+  (success connection (.data rpc-error)))
+
 (defmethod success Throwable [connection throwable]
   (success connection (throwable->value throwable)))
 
@@ -58,6 +64,9 @@
   (result connection value false))
 
 (defmulti failure value-type)
+
+(defmethod failure RpcError [connection rpc-error]
+  (failure connection (.data rpc-error)))
 
 (defmethod failure Throwable [connection throwable]
   (failure connection (throwable->value throwable)))
@@ -70,11 +79,15 @@
     (binding [*connection* connection]
       (try
         (let [value (apply procedure args)]
-          (success *connection* value))        
+          (success *connection* value))
         (catch Throwable error
-          (if (conn/caused-by-closed-connection? error)
-            (throw error)
-            (failure *connection* error)))))))
+          (when (conn/caused-by-closed-connection? error)
+            (throw error))
+          (if-let [rpc-error (exc/caused-by error RpcError)]
+            (failure *connection* rpc-error)
+            (do 
+             (log/error "Procedure call failed!" error) 
+             (failure *connection* error))))))))
 
 (defn- throw-undefined-procedure [{:keys [id name]}]
   (let [error-message (str "Undefined procedure for request {:id "
