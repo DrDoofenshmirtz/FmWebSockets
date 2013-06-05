@@ -34,3 +34,15 @@
                  [String] [String]
                  [Throwable] [Throwable]
                  [String Throwable] [String Throwable]})
+
+(gen-class
+  :name fm.websockets.exceptions.RpcError
+  :extends fm.websockets.exceptions.WebSocketException
+  :prefix RpcError-
+  :constructors {[Object] []}
+  :init init
+  :state data)
+
+(defn RpcError-init [data]
+  [[] data])
+
