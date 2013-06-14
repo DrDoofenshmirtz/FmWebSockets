@@ -71,25 +71,38 @@
   (assert store)
   (rsc-slot-ext/scope-expired! store :application))
 
-(defn- with-scope-expiration [handler scope]
+(defn- call-hooks [position scope store args]
+  (let [signal (keyword (str position \- (name scope)))]
+    (apply rsc-store/send! store signal args)))
+
+(defn- call-before-hooks [scope store args]
+  (call-hooks "before" scope store args))
+
+(defn- call-after-hooks [scope store args]
+  (call-hooks "after" scope store args))
+
+(defn- with-scope-hooks [handler scope]
   (assert (not (nil? handler)))
   (assert (valid-scope? scope))
   (fn [connection & args]
-    (let [store (resource-store connection)]
+    (let [store     (resource-store connection)
+          hook-args (list* connection handler args)]
       (try
+        (call-before-hooks scope store hook-args)
         (apply handler connection args)
+        (call-after-hooks scope store hook-args)
         (finally
           (rsc-slot-ext/scope-expired! store scope))))))
 
 (defn request-handler [request-handler]
-  (with-scope-expiration request-handler :request))
+  (with-scope-hooks request-handler :request))
 
 (defn message-handler [message-handler]
-  (with-scope-expiration message-handler :message))
+  (with-scope-hooks message-handler :message))
 
 (defn connection-handler [connection-handler store-constructor]
   (assert connection-handler)
   (assert store-constructor)
-  (comp (with-scope-expiration connection-handler :connection)
+  (comp (with-scope-hooks connection-handler :connection)
         #(with-resource-store % (store-constructor %))))
 
