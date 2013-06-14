@@ -19,7 +19,10 @@
     (throw (IllegalStateException.
              "Connection does not have a resource store!"))))
 
-(def ^{:private true} ordered-scopes [:request :connection :application])
+(def ^{:private true} ordered-scopes [:request 
+                                      :message 
+                                      :connection 
+                                      :application])
 
 (def ^{:private true} valid-scopes (set ordered-scopes))
 
@@ -80,6 +83,9 @@
 
 (defn request-handler [request-handler]
   (with-scope-expiration request-handler :request))
+
+(defn message-handler [message-handler]
+  (with-scope-expiration message-handler :message))
 
 (defn connection-handler [connection-handler store-constructor]
   (assert connection-handler)
