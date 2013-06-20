@@ -29,18 +29,24 @@
 (defn- valid-scope? [scope]
   (contains? valid-scopes scope))
 
-(defn- with-scope [kwargs scope]
+(defn- with-expiration-slots [kwargs scope]
   (update-in kwargs [:slots] #(slxt/with-scope % scope ordered-scopes)))
 
 (defn- with-prefix [keywrd prefix]
   (keyword (str prefix \- (name keywrd))))
+
+(defn- with-hook-slots [kwargs]
+  kwargs)
+
+(defn- with-scope-slots [kwargs scope]
+  (-> kwargs (with-expiration-slots scope) with-hook-slots))
 
 (defn store! [connection key resource scope & {:as kwargs}]
   (assert connection)
   (assert resource)
   (assert (valid-scope? scope))
   (let [store  (resource-store connection)
-        kwargs (with-scope kwargs)]
+        kwargs (with-scope-slots kwargs scope)]
     (apply rsc-store/store! store key resource (flatten (seq kwargs)))))
 
 (defn send! [connection signal & args]
@@ -92,8 +98,9 @@
           hook-args (list* connection handler args)]
       (try
         (call-before-hooks scope store hook-args)
-        (apply handler connection args)
-        (call-after-hooks scope store hook-args)
+        (let [result (apply handler connection args)]
+          (call-after-hooks scope store hook-args)
+          result)        
         (finally
           (slxt/scope-expired! store scope))))))
 
