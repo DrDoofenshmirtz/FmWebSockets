@@ -29,8 +29,8 @@
 (defn- valid-scope? [scope]
   (contains? valid-scopes scope))
 
-(defn- with-scope [slots scope]
-  (slxt/with-scope slots scope ordered-scopes))
+(defn- with-scope [kwargs scope]
+  (update-in kwargs [:slots] #(slxt/with-scope % scope ordered-scopes)))
 
 (defn- with-prefix [keywrd prefix]
   (keyword (str prefix \- (name keywrd))))
@@ -40,7 +40,7 @@
   (assert resource)
   (assert (valid-scope? scope))
   (let [store  (resource-store connection)
-        kwargs (update-in kwargs [:slots] with-scope scope)]
+        kwargs (with-scope kwargs)]
     (apply rsc-store/store! store key resource (flatten (seq kwargs)))))
 
 (defn send! [connection signal & args]
