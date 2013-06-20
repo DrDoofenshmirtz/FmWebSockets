@@ -32,6 +32,9 @@
 (defn- with-scope [slots scope]
   (rsc-slot-ext/with-scope slots scope ordered-scopes))
 
+(defn- with-prefix [keywrd prefix]
+  (keyword (str prefix \- (name keywrd))))
+
 (defn store! [connection key resource scope & {:as kwargs}]
   (assert connection)
   (assert resource)
@@ -72,7 +75,7 @@
   (rsc-slot-ext/scope-expired! store :application))
 
 (defn- call-hooks [position scope store args]
-  (let [signal (keyword (str position \- (name scope)))]
+  (let [signal (with-prefix scope position)]
     (apply rsc-store/send! store signal args)))
 
 (defn- call-before-hooks [scope store args]
