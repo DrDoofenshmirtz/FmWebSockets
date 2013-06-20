@@ -4,7 +4,7 @@
   fm.websockets.resources
   (:require
     [fm.resources.store :as rsc-store]
-    [fm.resources.slot-extensions :as rsc-slot-ext]
+    [fm.resources.slot-extensions :as slxt]
     [fm.websockets.connection :as conn]))
 
 (defn with-resource-store [connection resource-store]
@@ -30,7 +30,7 @@
   (contains? valid-scopes scope))
 
 (defn- with-scope [slots scope]
-  (rsc-slot-ext/with-scope slots scope ordered-scopes))
+  (slxt/with-scope slots scope ordered-scopes))
 
 (defn- with-prefix [keywrd prefix]
   (keyword (str prefix \- (name keywrd))))
@@ -64,15 +64,15 @@
 
 (defn request-expired! [connection]
   (assert connection)
-  (rsc-slot-ext/scope-expired! (resource-store connection) :request))
+  (slxt/scope-expired! (resource-store connection) :request))
 
 (defn connection-expired! [connection]
   (assert connection)
-  (rsc-slot-ext/scope-expired! (resource-store connection) :connection))
+  (slxt/scope-expired! (resource-store connection) :connection))
 
 (defn application-expired! [store]
   (assert store)
-  (rsc-slot-ext/scope-expired! store :application))
+  (slxt/scope-expired! store :application))
 
 (defn- call-hooks [position scope store args]
   (let [signal (with-prefix scope position)]
@@ -95,7 +95,7 @@
         (apply handler connection args)
         (call-after-hooks scope store hook-args)
         (finally
-          (rsc-slot-ext/scope-expired! store scope))))))
+          (slxt/scope-expired! store scope))))))
 
 (defn request-handler [request-handler]
   (with-scope-hooks request-handler :request))
