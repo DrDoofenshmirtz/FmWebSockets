@@ -26,17 +26,23 @@
 
 (def ^{:private true} valid-scopes (set ordered-scopes))
 
+(def ^{:private true} hook-signals [:before-request    :after-request 
+                                    :before-message    :after-message
+                                    :before-connection :after-connection])
+
 (defn- valid-scope? [scope]
   (contains? valid-scopes scope))
 
 (defn- with-expiration-slots [kwargs scope]
   (update-in kwargs [:slots] #(slxt/with-scope % scope ordered-scopes)))
 
-(defn- with-prefix [keywrd prefix]
-  (keyword (str prefix \- (name keywrd))))
-
 (defn- with-hook-slots [kwargs]
-  kwargs)
+  (let [hook-slots (select-keys kwargs hook-signals)]
+    (if-not (empty? hook-slots)
+      (apply dissoc 
+             (update-in kwargs [:slots] merge hook-slots) 
+             hook-signals)
+      kwargs)))
 
 (defn- with-scope-slots [kwargs scope]
   (-> kwargs (with-expiration-slots scope) with-hook-slots))
@@ -83,6 +89,9 @@
 (defn application-expired! [store]
   (assert store)
   (slxt/scope-expired! store :application))
+
+(defn- with-prefix [keywrd prefix]
+  (keyword (str prefix \- (name keywrd))))
 
 (defn- call-hooks [position scope store args]
   (let [signal (with-prefix scope position)]
