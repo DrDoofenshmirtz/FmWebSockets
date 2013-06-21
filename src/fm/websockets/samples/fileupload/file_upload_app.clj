@@ -28,7 +28,8 @@
                                           rscs/request-handler))
 
 (def ^{:private true} message-handler (-> request-handler
-                                          rpc/message-handler))
+                                          rpc/message-handler
+                                          rscs/message-handler))
 
 (defn- store-constructor [connection]
   (rstore/partition-store resource-store (:id connection)))
