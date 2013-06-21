@@ -72,6 +72,10 @@
   (assert connection)
   (slxt/scope-expired! (resource-store connection) :request))
 
+(defn message-expired! [connection]
+  (assert connection)
+  (slxt/scope-expired! (resource-store connection) :message))
+
 (defn connection-expired! [connection]
   (assert connection)
   (slxt/scope-expired! (resource-store connection) :connection))
