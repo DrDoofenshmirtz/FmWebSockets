@@ -108,7 +108,7 @@
   (assert (valid-scope? scope))
   (fn [connection & args]
     (let [store     (resource-store connection)
-          hook-args (list* connection handler args)]
+          hook-args (cons connection args)]
       (try
         (call-before-hooks scope store hook-args)
         (let [result (apply handler connection args)]
