@@ -1,11 +1,13 @@
 (ns
-  ^{:doc "Resource management support for HTML5 WebSocket connections."
+  ^{:doc 
+  
+  "Resource management support for HTML5 WebSocket connections."
+    
     :author "Frank Mosebach"}
   fm.websockets.resources
   (:require
     [fm.resources.store :as rsc-store]
-    [fm.resources.slot-extensions :as slxt]
-    [fm.websockets.connection :as conn]))
+    [fm.resources.slot-extensions :as slxt]))
 
 (defn with-resource-store [connection resource-store]
   (assert connection)
