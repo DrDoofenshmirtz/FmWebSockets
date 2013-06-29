@@ -205,6 +205,9 @@
 (defmethod message-content :binary-message [message]
   (message-payload message))
 
+(defmethod message-content :ping [message]
+  (seq (message-payload message)))
+
 (defmethod message-content :pong [message]
   (seq (message-payload message)))
 
