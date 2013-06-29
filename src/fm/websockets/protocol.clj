@@ -183,6 +183,9 @@
 (defn text-message? [message]
   (= :text-message (opcode message)))
 
+(defn ping? [message]
+  (= :ping (opcode message)))
+
 (defn pong? [message]
   (= :pong (opcode message)))
 
