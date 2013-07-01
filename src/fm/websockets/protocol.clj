@@ -262,7 +262,13 @@
 (defn send-text-message [output-stream text]
   (send-bytes output-stream (.getBytes text) :text-message true))
 
-(defn send-ping [output-stream]
-  (let [ping-bytes (.getBytes (str (UUID/randomUUID)))]
+(defn ping-bytes []
+  (.getBytes (str (UUID/randomUUID))))
+
+(defn send-ping
+  ([output-stream]
+    (send-ping output-stream (ping-bytes)))
+  ([output-stream ping-bytes]
     (send-bytes output-stream ping-bytes :ping true)
     (seq ping-bytes)))
+
