@@ -150,7 +150,6 @@
 
 (defmulti output
   "Extracts a suitable connection output from a given target."
-  {:private true}
   type)
 
 (defmethod output ::connection [target]
@@ -163,8 +162,7 @@
   (throw (IllegalArgumentException. "Illegal output target!")))
 
 (defmacro with-output-of
-  "Evaluates the given body with the target's output bound to '%'."
-  {:private true} 
+  "Evaluates the given body with the target's output bound to '%'." 
   [target & body]
  `(let [output# (output ~target)]
     (output# (fn [~'%] ~@body))))
