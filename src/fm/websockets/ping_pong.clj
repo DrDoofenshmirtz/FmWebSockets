@@ -12,7 +12,7 @@
     [fm.websockets.resources :as rsc])
   (:import
     (java.util UUID)
-    (java.util.concurrent Executors)))
+    (java.util.concurrent Executors TimeUnit)))
 
 (def ^{:private true} ping-scheduler (Executors/newScheduledThreadPool 2))
 
@@ -20,6 +20,11 @@
   connection)
 
 (defn- handle-pong-message [connection message]
+  (log/debug (format "Received PONG message %s (connection: %s)." 
+                     message 
+                     (:id connection)))
+  (let [pong-content (prot/message-content message)]
+    (rsc/send-to! connection [::ping-pong] ::handle-pong pong-content))
   connection)
 
 (defn message-handler [message-handler]
@@ -35,21 +40,55 @@
     (.cancel ping-task true))
   nil)
 
-(defn- handle-pong [ping-pong pong-bytes])
+(defn- handle-ping [{ping-backlog ::ping-backlog :as ping-pong} ping-content]
+  (assoc ping-pong ::ping-content ping-content 
+                   ::ping-backlog (inc ping-backlog)))
 
-(defn- schedule-ping-task [stripped-connection start-gate])
+(defn- drop-ping [{ping-content ::ping-content :as ping-pong} pong-content]
+  (when (= ping-content pong-content)
+    (let [{ping-backlog ::ping-backlog} ping-pong]
+      (-> ping-pong 
+          (dissoc ::ping-content) 
+          (assoc ::ping-backlog (max 0 (dec ping-backlog)))))))
 
-(defn- store-ping-pong [stripped-connection]
+(defn- handle-pong [{ping-content ::ping-content :as ping-pong} pong-content]
+  (when (= ping-content pong-content)
+    (-> ping-pong 
+        (dissoc ::ping-content)
+        (assoc ::ping-backlog 0))))
+
+(defn- send-ping [connection]
+  (let [ping-bytes   (prot/ping-bytes)
+        ping-content (seq ping-bytes)]
+    (rsc/send-to! connection [::ping-pong] ::handle-ping ping-content)
+    (try
+      (conn/with-output-of connection
+        (prot/send-ping % ping-bytes))
+      (catch Exception ping-error
+        (when-not (conn/caused-by-closed-connection? ping-error)
+          (rsc/send-to! connection [::ping-pong] ::drop-ping ping-content)
+          (log/error "Ping failed!" ping-error))))))
+
+(defn- schedule-ping-task [connection start-gate]
+  (let [ping-task (fn []
+                    (deref start-gate)
+                    (send-ping connection))]
+    (.scheduleWithFixedDelay ping-scheduler ping-task 10 10 TimeUnit/SECONDS)))
+
+(defn- store-ping-pong [connection]
   (let [start-gate (promise)
-        ping-task  (schedule-ping-task stripped-connection start-gate)
+        ping-task  (schedule-ping-task connection start-gate)
         ping-pong  {::ping-task ping-task ::ping-backlog 0}
         close!     cancel-ping-task!
-        slots      {::handle-pong handle-pong}]
-    (rsc/store! stripped-connection 
+        slots      {::handle-ping handle-ping
+                    ::drop-ping   drop-ping
+                    ::handle-pong handle-pong}]
+    (rsc/store! connection 
                 ::ping-pong ping-pong 
                 :connection
                 :close! close!
-                :slots  slots)))
+                :slots  slots)
+    (deliver start-gate)))
 
 (defn connection-handler []
   (fn [connection]
