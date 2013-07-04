@@ -99,7 +99,7 @@
                 :connection
                 :close! close!
                 :slots  slots)
-    (deliver start-gate)))
+    (deliver start-gate nil)))
 
 (defn connection-handler []
   (fn [connection]
