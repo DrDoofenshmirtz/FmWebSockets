@@ -17,6 +17,9 @@
 (def ^{:private true} ping-scheduler (Executors/newScheduledThreadPool 2))
 
 (defn- handle-ping-message [connection message]
+  (log/debug (format "Received PING message %s (connection: %s)." 
+                     (print-str message) 
+                     (:id connection)))
   connection)
 
 (defn- handle-pong-message [connection message]
