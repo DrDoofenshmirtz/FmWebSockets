@@ -11,11 +11,11 @@
     [clojure.contrib.command-line :as cli]
     [fm.resources.store :as rstore]
     [fm.websockets.resources :as rscs]
+    [fm.websockets.ping-pong :as ppg]
     [fm.websockets.rpc.core :as rpc]
     [fm.websockets.rpc.targets :as tar]
     [fm.websockets.rpc.json :as jrpc]
     [fm.websockets.message-loop :as mloop]
-    [fm.websockets.connection :as conn]
     [fm.websockets.server :as server]))
 
 (def ^{:private true} 
@@ -29,6 +29,7 @@
 
 (def ^{:private true} message-handler (-> request-handler
                                           rpc/message-handler
+                                          ppg/message-handler
                                           rscs/message-handler))
 
 (defn- store-constructor [connection]
@@ -37,9 +38,7 @@
 (def ^{:private true} 
      connection-handler (-> (comp (mloop/connection-handler message-handler) 
                                   (jrpc/connection-handler)
-                                  (fn [connection]
-                                    (conn/ping connection)
-                                    connection))
+                                  (ppg/connection-handler))
                             (rscs/connection-handler store-constructor)))
 
 (defn- close-resources []
