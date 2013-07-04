@@ -16,6 +16,8 @@
 
 (def ^{:private true} ping-scheduler (Executors/newScheduledThreadPool 2))
 
+(def ^{:private true} ping-delay-seconds 30)
+
 (defn- handle-ping-message [connection message]
   (log/debug (format "Received PING message %s (connection: %s)." 
                      (print-str message) 
@@ -84,7 +86,11 @@
   (let [ping-task (fn []
                     (deref start-gate)
                     (send-ping connection))]
-    (.scheduleWithFixedDelay ping-scheduler ping-task 10 10 TimeUnit/SECONDS)))
+    (.scheduleWithFixedDelay ping-scheduler 
+                             ping-task 
+                             ping-delay-seconds 
+                             ping-delay-seconds 
+                             TimeUnit/SECONDS)))
 
 (defn- store-ping-pong [connection]
   (let [start-gate (promise)
