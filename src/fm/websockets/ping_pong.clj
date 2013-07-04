@@ -21,7 +21,7 @@
 
 (defn- handle-pong-message [connection message]
   (log/debug (format "Received PONG message %s (connection: %s)." 
-                     message 
+                     (print-str message) 
                      (:id connection)))
   (let [pong-content (prot/message-content message)]
     (rsc/send-to! connection [::ping-pong] ::handle-pong pong-content))
@@ -61,13 +61,21 @@
   (let [ping-bytes   (prot/ping-bytes)
         ping-content (seq ping-bytes)]
     (rsc/send-to! connection [::ping-pong] ::handle-ping ping-content)
+    (log/debug (format "Sending ping: %s (connection: %s)..." 
+                       ping-content 
+                       (:id connection)))
     (try
       (conn/with-output-of connection
         (prot/send-ping % ping-bytes))
+      (log/debug (format "...sent ping: %s (connection: %s)." 
+                         ping-content 
+                         (:id connection)))
       (catch Exception ping-error
         (when-not (conn/caused-by-closed-connection? ping-error)
           (rsc/send-to! connection [::ping-pong] ::drop-ping ping-content)
-          (log/error "Ping failed!" ping-error))))))
+          (log/error (format "Failed to send ping (connection: %s)!" 
+                             (:id connection)) 
+                     ping-error))))))
 
 (defn- schedule-ping-task [connection start-gate]
   (let [ping-task (fn []
