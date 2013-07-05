@@ -272,3 +272,6 @@
     (send-bytes output-stream ping-bytes :ping true)
     (seq ping-bytes)))
 
+(defn send-pong [output-stream pong-bytes]
+  (send-bytes output-stream pong-bytes :pong true))
+
