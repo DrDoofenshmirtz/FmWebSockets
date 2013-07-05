@@ -18,10 +18,29 @@
 
 (def ^{:private true} ping-delay-seconds 30)
 
+(defn- send-pong [connection pong-bytes]
+  (let [pong-content (seq pong-bytes)]
+    (log/debug (format "Sending pong: %s (connection: %s)..." 
+                       pong-content 
+                       (:id connection)))
+    (try
+      (conn/with-output-of connection
+        (prot/send-pong % pong-bytes))
+      (log/debug (format "...sent pong: %s (connection: %s)." 
+                         pong-content 
+                         (:id connection)))
+      (catch Exception pong-error
+        (when (conn/caused-by-closed-connection? pong-error)
+          (throw pong-error))
+        (log/error (format "Failed to send pong (connection: %s)!" 
+                           (:id connection)) 
+                           pong-error)))))
+
 (defn- handle-ping-message [connection message]
   (log/debug (format "Received PING message %s (connection: %s)." 
                      (print-str message) 
                      (:id connection)))
+  (send-pong connection (prot/message-payload message))
   connection)
 
 (defn- handle-pong-message [connection message]
