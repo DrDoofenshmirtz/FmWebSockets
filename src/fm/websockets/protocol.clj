@@ -228,7 +228,12 @@
                  "Payload is too long for a single fragment!"))))))
 
 (defn- generate-mask-bytes []
-  (take 4 (repeatedly #(signed-byte (rand-int 256)))))
+  (let [mask-bytes (byte-array 4)]
+    (aset mask-bytes 0 (signed-byte (rand-int 256)))
+    (aset mask-bytes 1 (signed-byte (rand-int 256)))
+    (aset mask-bytes 2 (signed-byte (rand-int 256)))
+    (aset mask-bytes 3 (signed-byte (rand-int 256)))
+    mask-bytes))
 
 (defn- header-bytes [opcode-key final-fragment? payload-size mask-bytes]
   (let [opcode-value       (opcode-values-by-opcode-keys opcode-key)
