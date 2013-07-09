@@ -244,9 +244,10 @@
                              (bit-set opcode-value 7)
                              opcode-value)
         [payload-length payload-length-bytes] (payload-length payload-size)]
-    (map signed-byte (concat [final?-rsvs-opcode (bit-set payload-length 7)]
-                             payload-length-bytes
-                             mask-bytes))))
+    (->> (concat [final?-rsvs-opcode (bit-set payload-length 7)]
+                 payload-length-bytes
+                 mask-bytes)
+         (map signed-byte))))
 
 (defn- payload-bytes [payload-bytes mask-bytes]
   (map #(signed-byte (bit-xor %1 %2)) payload-bytes (cycle mask-bytes)))
