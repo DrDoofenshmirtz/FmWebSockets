@@ -111,22 +111,25 @@
   (if-let [mask-bytes (read-byte-array input-stream 4)]
     (assoc fragment :mask-bytes mask-bytes)))
 
-(defn- masked-byte-array [^bytes byte-array ^bytes mask-bytes]
-  (let [array-length (alength byte-array) 
-        mask-length  (alength mask-bytes)]
-    (loop [index 0]
-      (when (< index array-length)
-        (aset-byte byte-array
-                   index
-                   (bit-xor (int (aget byte-array index)) 
-                            (int (aget mask-bytes (mod index mask-length)))))
-        (recur (inc index))))
-    byte-array))
+(defn- masked-byte-array! 
+  ([byte-array mask-bytes]
+    (masked-byte-array! byte-array mask-bytes 0))
+  ([^bytes byte-array ^bytes mask-bytes ^int start-index]
+    (let [array-length (alength byte-array) 
+          mask-length  (alength mask-bytes)]
+      (loop [index (max 0 start-index)]
+        (when (< index array-length)
+          (aset-byte byte-array
+                     index
+                     (bit-xor (int (aget byte-array index)) 
+                              (int (aget mask-bytes (mod index mask-length)))))
+          (recur (inc index))))
+      byte-array)))
 
 (defn- read-payload [fragment input-stream]
   (let [{:keys [payload-length mask-bytes]} fragment]
     (if-let [payload-bytes (read-byte-array input-stream payload-length)]
-      (assoc fragment :payload (masked-byte-array payload-bytes mask-bytes)))))
+      (assoc fragment :payload (masked-byte-array! payload-bytes mask-bytes)))))
 
 (defn- read-header [fragment input-stream]
   (if-let [^bytes header-bytes (read-byte-array input-stream 2)]
