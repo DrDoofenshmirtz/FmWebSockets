@@ -117,13 +117,13 @@
   ([^bytes byte-array ^bytes mask-bytes ^int start-index]
     (let [array-length (alength byte-array) 
           mask-length  (alength mask-bytes)]
-      (loop [index (max 0 start-index)]
-        (when (< index array-length)
+      (loop [array-index (max 0 start-index) mask-index 0]
+        (when (< array-index array-length)
           (aset-byte byte-array
-                     index
-                     (bit-xor (int (aget byte-array index)) 
-                              (int (aget mask-bytes (mod index mask-length)))))
-          (recur (inc index))))
+                     array-index
+                     (bit-xor (int (aget byte-array array-index)) 
+                              (int (aget mask-bytes mask-index))))
+          (recur (inc array-index) (mod (inc mask-index) mask-length))))
       byte-array)))
 
 (defn- read-payload [fragment input-stream]
