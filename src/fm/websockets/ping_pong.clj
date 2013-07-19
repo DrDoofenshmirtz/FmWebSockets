@@ -107,7 +107,8 @@
 (defn- ping-task [connection start-gate max-backlog]
   (fn []
     (deref start-gate)
-    (send-ping connection)))
+    (when (< (ping-backlog connection) max-backlog)
+      (send-ping connection))))
 
 (defn- schedule-ping-task [connection start-gate max-backlog]
   (.scheduleWithFixedDelay ping-scheduler 
