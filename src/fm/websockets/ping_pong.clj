@@ -104,21 +104,21 @@
 (defn- ping-backlog [connection]
   (-> connection (rsc/get-resource ::ping-pong) (::ping-backlog 0)))
 
-(defn- ping-task [connection start-gate]
+(defn- ping-task [connection start-gate max-backlog]
   (fn []
     (deref start-gate)
     (send-ping connection)))
 
-(defn- schedule-ping-task [connection start-gate]
+(defn- schedule-ping-task [connection start-gate max-backlog]
   (.scheduleWithFixedDelay ping-scheduler 
-                           (ping-task connection start-gate)  
+                           (ping-task connection start-gate max-backlog)  
                            ping-delay-seconds 
                            ping-delay-seconds 
                            TimeUnit/SECONDS))
 
-(defn- store-ping-pong [connection]
+(defn- store-ping-pong [connection max-backlog]
   (let [start-gate (promise)
-        ping-task  (schedule-ping-task connection start-gate)
+        ping-task  (schedule-ping-task connection start-gate max-backlog)
         ping-pong  {::ping-task ping-task ::ping-backlog 0}
         close!     cancel-ping-task!
         slots      {::handle-ping handle-ping
@@ -131,8 +131,11 @@
                 :slots  slots)
     (deliver start-gate nil)))
 
-(defn connection-handler []
-  (fn [connection]
-    (store-ping-pong (conn/drop-messages connection))
-    connection))
+(defn connection-handler
+  ([]
+    (connection-handler 2))
+  ([max-backlog]
+    (fn [connection]
+      (store-ping-pong (conn/drop-messages connection) max-backlog)
+      connection)))
 
