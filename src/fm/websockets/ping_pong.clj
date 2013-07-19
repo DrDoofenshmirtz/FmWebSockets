@@ -135,7 +135,8 @@
   ([]
     (connection-handler 2))
   ([max-backlog]
-    (fn [connection]
-      (store-ping-pong (conn/drop-messages connection) max-backlog)
-      connection)))
+    (let [max-backlog (max max-backlog 1)]
+      (fn [connection]
+        (store-ping-pong (conn/drop-messages connection) max-backlog)
+        connection))))
 
