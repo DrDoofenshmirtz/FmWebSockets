@@ -101,15 +101,20 @@
                              (:id connection)) 
                      ping-error))))))
 
+(defn- ping-backlog [connection]
+  (-> connection (rsc/get-resource ::ping-pong) (::ping-backlog 0)))
+
+(defn- ping-task [connection start-gate]
+  (fn []
+    (deref start-gate)
+    (send-ping connection)))
+
 (defn- schedule-ping-task [connection start-gate]
-  (let [ping-task (fn []
-                    (deref start-gate)
-                    (send-ping connection))]
-    (.scheduleWithFixedDelay ping-scheduler 
-                             ping-task 
-                             ping-delay-seconds 
-                             ping-delay-seconds 
-                             TimeUnit/SECONDS)))
+  (.scheduleWithFixedDelay ping-scheduler 
+                           (ping-task connection start-gate)  
+                           ping-delay-seconds 
+                           ping-delay-seconds 
+                           TimeUnit/SECONDS))
 
 (defn- store-ping-pong [connection]
   (let [start-gate (promise)
