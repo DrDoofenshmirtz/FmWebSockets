@@ -1,3 +1,9 @@
+FmWebSockets - A WebSockets Server with JSON RPC Support
+========================================================
+
+This emerged as my *"never-ending pet project"* while trying to become fluent in
+[Clojure](http://clojure.org/).
+
 License
 -------
 
