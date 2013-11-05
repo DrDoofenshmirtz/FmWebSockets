@@ -14,15 +14,21 @@
   (:import
     (java.util UUID)))
 
+(defn- gen-action [name body]
+  (if (= '=> (first body))
+    (second body)
+    `(fn ~name ~@body)))
+
 (defmacro defaction [name & more]
-  (let [[[doc-string? attributes?] more] (split-with (complement sequential?) 
+  (let [[[doc-string? attributes?] more] (split-with #(not (or (= '=> %) 
+                                                               (sequential? %))) 
                                                      more)
         var-meta    (if (string? doc-string?)
                       (assoc attributes? :doc doc-string?)
                       attributes?)
         target-meta {::target {::name `'~name ::type ::action}}]    
    `(def ~(vary-meta name merge var-meta target-meta)
-          (vary-meta (fn ~name ~@more) merge ~target-meta))))
+          (vary-meta ~(gen-action name more) merge ~target-meta))))
 
 (defn- wrap-resource [resource close!]
   {::resource resource
