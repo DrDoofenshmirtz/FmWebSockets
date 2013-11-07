@@ -14,6 +14,12 @@
   (:import
     (java.util UUID)))
 
+(defmacro defrouter [router]
+  (let [router-name (gensym "router__")
+        target-meta {::target {::name `'~router-name ::type ::router}}]    
+   `(def ~(vary-meta router-name merge target-meta)
+          (vary-meta ~router merge ~target-meta))))
+
 (defn- gen-action [name body]
   (if (= '=> (first body))
     (second body)
