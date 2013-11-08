@@ -1,11 +1,12 @@
 (ns fm.websockets.samples.fileupload.file-upload-service
   (:require
-    [clojure.contrib.logging :as log])
-  (:use 
-    [fm.websockets.rpc.targets :only (defchannel)])
+    [clojure.contrib.logging :as log]
+    [fm.websockets.rpc.targets :as tar])
   (:import
     (java.io File FileOutputStream IOException)
     (java.util UUID)))
+
+(tar/defrouter (tar/request-name-router))
 
 (defn- data-bytes [data]
   (.getBytes (str data) "ISO-8859-1"))
@@ -49,8 +50,8 @@
       (.delete upload-directory))
     nil))
 
-(defchannel upload-file :open  start-upload
-                        :write continue-upload
-                        :abort abort-upload
-                        :close finish-upload)
+(tar/defchannel upload-file :open  start-upload
+                            :write continue-upload
+                            :abort abort-upload
+                            :close finish-upload)
 
