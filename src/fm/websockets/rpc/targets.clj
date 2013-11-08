@@ -20,6 +20,10 @@
    `(def ~(vary-meta router-name merge target-meta)
           (vary-meta ~router merge ~target-meta))))
 
+(defn request-name-router [] 
+  (fn [connection request]
+   (-> request :name str hy/hyphenate symbol)))
+
 (defn- gen-action [name body]
   (if (= '=> (first body))
     (second body)
@@ -148,25 +152,47 @@
    `(def ~(vary-meta name merge var-meta target-meta)
           (vary-meta (channel (hash-map ~@more)) merge ~target-meta))))
 
-(defn- target-name [request]
-  (-> request :name str hy/hyphenate symbol))
+(defn target-attributes [target]
+  (::target (meta target)))
 
-(defn- target-finder [request]
-  (let [target-name (target-name request)]
-    (fn [lookup]
-      (let [target (lookup target-name)]
-        (if (::target (meta target))
-          target)))))
+(defn get-router [targets]
+  (-> targets ::router first second))
+
+(defn get-action [targets name]
+  (get-in targets [::action name]))
+
+(defn get-channel [targets name]
+  (get-in targets [::channel name]))
+
+(defn- add-target [targets [target-attributes target]]
+  (assoc-in targets 
+            [(::type target-attributes) (::name target-attributes)] 
+            @target))
+
+(defn ns-targets [ns]
+  (reduce add-target 
+          {}           
+          (map (juxt target-attributes identity) 
+               (filter target-attributes 
+                       (vals (ns-interns ns))))))
+
+(defn find-target [targets connection request]
+  (when-let [router (get-router targets)]
+    (some identity (map (fn [target-type] 
+                          (when-let [name (router connection request)]
+                            (get-in targets [target-type name]))) 
+                        [::action ::channel]))))
 
 (defn target-router 
   ([]
     (target-router (ns-name *ns*)))
   ([ns-name & ns-names]
-    (let [ns-names   (cons ns-name ns-names)
-          ns-lookups (map (fn [ns-name] 
-                            (require ns-name) 
-                            (ns-interns ns-name)) 
-                          ns-names)]
+    (let [ns-names (cons ns-name ns-names)
+          targets  (map (fn [ns-name] 
+                          (require ns-name) 
+                          (ns-targets ns-name)) 
+                        ns-names)]
       (req/request-router (fn [connection request]
-                            (some (target-finder request) ns-lookups))))))
+                            (some #(find-target % connection request) 
+                                  targets))))))
 
