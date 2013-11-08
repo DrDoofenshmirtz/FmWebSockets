@@ -14,13 +14,13 @@
   (:import
     (java.util UUID)))
 
-(defmacro defrouter [router]
-  (let [router-name (gensym "router__")
-        target-meta {::target {::name `'~router-name ::type ::router}}]    
-   `(def ~(vary-meta router-name merge target-meta)
-          (vary-meta ~router merge ~target-meta))))
+(defmacro defroute [route]
+  (let [route-name  (gensym "__route__")
+        target-meta {::target {::name `'~route-name ::type ::route}}]    
+   `(def ~(vary-meta route-name merge target-meta)
+          (vary-meta ~route merge ~target-meta))))
 
-(defn request-name-router [] 
+(defn request-name-route [] 
   (fn [connection request]
    (-> request :name str hy/hyphenate symbol)))
 
@@ -152,22 +152,13 @@
    `(def ~(vary-meta name merge var-meta target-meta)
           (vary-meta (channel (hash-map ~@more)) merge ~target-meta))))
 
-(defn target-attributes [target]
-  (::target (meta target)))
-
-(defn get-router [targets]
-  (-> targets ::router first second))
-
-(defn get-action [targets name]
-  (get-in targets [::action name]))
-
-(defn get-channel [targets name]
-  (get-in targets [::channel name]))
-
 (defn- add-target [targets [target-attributes target]]
   (assoc-in targets 
             [(::type target-attributes) (::name target-attributes)] 
             @target))
+
+(defn- target-attributes [target]
+  (::target (meta target)))
 
 (defn ns-targets [ns]
   (reduce add-target 
@@ -177,9 +168,9 @@
                        (vals (ns-interns ns))))))
 
 (defn find-target [targets connection request]
-  (when-let [router (get-router targets)]
+  (when-let [route (-> targets ::route first second)]
     (some identity (map (fn [target-type] 
-                          (when-let [name (router connection request)]
+                          (when-let [name (route connection request)]
                             (get-in targets [target-type name]))) 
                         [::action ::channel]))))
 
