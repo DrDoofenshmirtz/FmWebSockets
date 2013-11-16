@@ -6,7 +6,7 @@
     (java.io File FileOutputStream IOException)
     (java.util UUID)))
 
-(tar/defroute (tar/request-name-route))
+(tar/defroute (tar/prefixed-request-name-route "file-upload" "."))
 
 (defn- data-bytes [data]
   (.getBytes (str data) "ISO-8859-1"))
