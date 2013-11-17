@@ -7,7 +7,7 @@
   fm.websockets.rpc.targets
   (:refer-clojure :exclude [read])
   (:require
-    [clojure.contrib.str-utils :as string]
+    [clojure.contrib.str-utils :as stu]
     [fm.core.hyphenate :as hy]
     [fm.resources.core :as rsc]
     [fm.websockets.resources :as wsr]
@@ -27,14 +27,14 @@
     (-> request :name str hy/hyphenate symbol)))
 
 (defn prefixed-request-name-route [expected-prefix segment-separator]
-  (let [quoted-separator (Pattern/quote segment-separator)]
+  (let [expected-prefix  (str expected-prefix)
+        quoted-separator (Pattern/quote segment-separator)]
     (fn [connection request]
       (let [prefixed-name   (-> request :name str)
             name-segments   (.split prefixed-name quoted-separator)
             prefix-segments (butlast name-segments)
-            prefix          (string/str-join segment-separator 
-                                             (map hy/hyphenate 
-                                                  prefix-segments))]
+            prefix          (stu/str-join segment-separator 
+                                          (map hy/hyphenate prefix-segments))]
         (when (= expected-prefix prefix)
           (symbol (hy/hyphenate (last name-segments))))))))
 
