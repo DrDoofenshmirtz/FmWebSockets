@@ -15,6 +15,7 @@
   :dependencies [[org.clojure/clojure "1.2.1"]
                  [org.clojure/clojure-contrib "1.2.0"]
                  [commons-codec/commons-codec "1.6"]
+                 [com.sun.net.httpserver/http "20070405"]
                  [fm/fm-core "1.0.0"]
                  [fm/fm-resources "1.0.0"]]
   :repositories {"mvn-local" ~local-mvn-repo-path}                 
