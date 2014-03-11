@@ -37,6 +37,7 @@
           (.close http-exchange))))))
 
 (defn start-up [port app-name resource-router]
+  (log/debug "Starting HTTP server...")
   (if (nil? port)
     (throw (IllegalArgumentException. "The port must be a valid number!")))
   (if (nil? resource-router)
@@ -46,5 +47,11 @@
         http-server  (doto (HttpServer/create (InetSocketAddress. port) 10)
                            (.createContext context-path http-handler)
                            (.start))]
-    #(.stop http-server 0)))
+    (log/debug (format "HTTP server is running (port: %, path: %s)." 
+                       port context-path))    
+    (fn []
+      (log/debug (format "Stopping http server (port: %, path: %s)..." 
+                         port context-path))
+      (.stop http-server 0)
+      (log/debug "HTTP server has been stopped."))))
 
