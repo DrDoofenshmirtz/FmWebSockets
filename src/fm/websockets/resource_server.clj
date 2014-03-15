@@ -1,7 +1,7 @@
 (ns
   ^{:doc 
   
-  "A basic HTTP Server tailored to host the Resources of a Single Page App."
+  "A basic HTTP Server tailored to deliver the Resources of a Single Page App."
   
     :author "Frank Mosebach"}
   fm.websockets.resource-server
@@ -74,11 +74,11 @@
         .getResponseBody
         (.write resource))))
 
-(defn- request-handler [resource-router context-path]
+(defn- request-handler [resource-finder context-path]
   (fn [http-exchange]
     (if-let [path (resource-path http-exchange context-path)]
       (if-let [request (resource-request http-exchange path)]
-        (if-let [resource (resource-router request)]
+        (if-let [resource (resource-finder request)]
           (send-response http-exchange (success request resource))
           (send-response http-exchange 
                          (failure HttpURLConnection/HTTP_NOT_FOUND 
@@ -90,8 +90,8 @@
                      (failure HttpURLConnection/HTTP_FORBIDDEN 
                               "Invalid resource path!")))))
 
-(defn- http-handler [resource-router context-path]
-  (let [request-handler (request-handler resource-router context-path)]
+(defn- http-handler [resource-finder context-path]
+  (let [request-handler (request-handler resource-finder context-path)]
     (reify
       HttpHandler
       (handle [this http-exchange]
@@ -104,14 +104,14 @@
           (finally 
             (.close http-exchange)))))))
 
-(defn start-up [port app-name resource-router]
+(defn start-up [port app-name resource-finder]
   (log/debug "Starting resource server...")
   (if (nil? port)
     (throw (IllegalArgumentException. "The port must be a valid number!")))
-  (if (nil? resource-router)
-    (throw (IllegalArgumentException. "The resource router must not be nil!")))
+  (if (nil? resource-finder)
+    (throw (IllegalArgumentException. "The resource finder must not be nil!")))
   (let [context-path (context-path app-name)
-        http-handler (http-handler resource-router context-path)
+        http-handler (http-handler resource-finder context-path)
         http-server  (doto (HttpServer/create (InetSocketAddress. port) 10)
                            (.createContext context-path http-handler)
                            (.start))]
