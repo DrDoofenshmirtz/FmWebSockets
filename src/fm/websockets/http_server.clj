@@ -11,20 +11,39 @@
     (java.net InetSocketAddress)
     (com.sun.net.httpserver HttpServer HttpHandler HttpExchange)))
 
+(def ^:private ^:const extension->content-type {"js"   ["text"  "javascript"]
+                                                "jpeg" ["image" "jpeg"]
+                                                "gif"  ["image" "gif"]
+                                                "png"  ["image" "png"]})
+
 (defn- context-path [app-name]
   (let [app-name (.trim (str app-name))]
     (if (.isEmpty app-name)
       (throw (IllegalArgumentException. "The app name must not be empty!"))
       (str "/" app-name))))
 
-;; TODO: derive resource type from path extension.
-(defn- resource-type [resource-path])
+(defn- extension [resource-path]
+  (let [path-length (.length resource-path)]
+    (when (> path-length 2)
+      (let [dot-index (.lastIndexOf resource-path ".")]
+        (when (and (pos? dot-index) (< dot-index (dec path-length)))
+          (.substring resource-path (inc dot-index)))))))
 
-;; TODO: extract/derive relevant properties:
-;; - resource path
-;; - resource type
-;; ...?
-(defn- resource-request [http-exchange context-path])
+(defn- content-type [resource-path]
+  (if (.isEmpty resource-path)
+    :application
+    (extension->content-type extension)))
+
+(defn- resource-request [http-exchange context-path]
+  (let [resource-path (-> http-exchange .getHttpContext .getPath str)
+        resource-path (if (.startsWith resource-path context-path)
+                        (.substring resource-path (.length context-path)))
+        content-type  (content-type resource-path)]    
+    (when content-type
+      (assoc (if (.isEmpty resource-path) 
+               {} 
+               {:resource-path resource-path}) 
+             :content-type content-type))))
 
 (defn- http-handler [resource-router context-path]
   (reify
@@ -32,7 +51,7 @@
     (handle [this http-exchange]
       ;; TODO: add logging, wrap router call.
       (try
-        (resource-router http-exchange)
+        (resource-router (resource-request http-exchange context-path))
         (finally 
           (.close http-exchange))))))
 
