@@ -47,29 +47,48 @@
                {:resource-path resource-path}) 
              :content-type content-type))))
 
+(defn- failure [status message]
+  {:status       status
+   :content-type ["text" "plain"]
+   :resource     (.getBytes message "UTF-8")})
+
+(defn- success [request resource]
+  (let [{content-type :content-type} request
+        content-type (if (= :application content-type)
+                       ["text" "html"]
+                       content-type)]
+    (assoc request :status       HttpURLConnection/HTTP_OK
+                   :content-type content-type
+                   :resource     resource)))
+
 (defn- send-response [http-exchange response]
-  (println response))
+  (let [{:keys [status content-type resource]} response
+        content-type    (str (first content-type) "/" (second content-type))
+        response-length (alength resource)]
+    (-> http-exchange 
+        (.sendResponseHeaders status response-length))
+    (-> http-exchange 
+        .getResponseHeaders 
+        (.set "Content-Type" content-type))
+    (-> http-exchange
+        .getResponseBody
+        (.write resource))))
 
 (defn- request-handler [resource-router context-path]
   (fn [http-exchange]
     (if-let [path (resource-path http-exchange context-path)]
       (if-let [request (resource-request http-exchange path)]
         (if-let [resource (resource-router request)]
+          (send-response http-exchange (success request resource))
           (send-response http-exchange 
-                         (assoc request :status   HttpURLConnection/HTTP_OK
-                                        :resource resource))
-          (send-response http-exchange
-                         {:status       HttpURLConnection/HTTP_NOT_FOUND
-                          :content-type ["text" "plain"]
-                          :resource     "Resource not found!"}))
-        (send-response http-exchange
-                       {:status       HttpURLConnection/HTTP_UNSUPPORTED_TYPE
-                        :content-type ["text" "plain"]
-                        :resource     "Unsupported resource type!"}))
-      (send-response http-exchange
-                     {:status       HttpURLConnection/HTTP_FORBIDDEN
-                      :content-type ["text" "plain"]
-                      :resource     "Invalid resource path!"}))))
+                         (failure HttpURLConnection/HTTP_NOT_FOUND 
+                                  "Resource not found!")))
+        (send-response http-exchange 
+                       (failure HttpURLConnection/HTTP_UNSUPPORTED_TYPE 
+                                "Unsupported resource type!")))
+      (send-response http-exchange 
+                     (failure HttpURLConnection/HTTP_FORBIDDEN 
+                              "Invalid resource path!")))))
 
 (defn- http-handler [resource-router context-path]
   (let [request-handler (request-handler resource-router context-path)]
