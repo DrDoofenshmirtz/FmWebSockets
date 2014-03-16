@@ -1,20 +1,16 @@
 (ns
   ^{:doc 
   
-  "A basic HTTP Server tailored to deliver the Resources of a Single Page App."
+  "A basic http server tailored to deliver the resources of a single page app."
   
     :author "Frank Mosebach"}
   fm.websockets.resource-server
   (:require
     [clojure.contrib.logging :as log])
   (:import
+    (java.util.regex Pattern)
     (java.net InetSocketAddress HttpURLConnection)
     (com.sun.net.httpserver HttpServer HttpHandler HttpExchange)))
-
-(def ^:private ^:const extension->content-type {"js"   ["text"  "javascript"]
-                                                "jpeg" ["image" "jpeg"]
-                                                "gif"  ["image" "gif"]
-                                                "png"  ["image" "png"]})
 
 (defn- context-path [app-name]
   (let [app-name (.trim (str app-name))]
@@ -22,76 +18,46 @@
       (throw (IllegalArgumentException. "The app name must not be empty!"))
       (str "/" app-name))))
 
-(defn- resource-path [http-exchange context-path]
-  (let [resource-path (-> http-exchange .getHttpContext .getPath str)]
-    (when (.startsWith resource-path context-path)
-      (.substring resource-path (.length context-path)))))
+(defn- resource-path [request-path app-name]
+  (let [[_ head tail] (-> (str "^/*(" (Pattern/quote app-name) ")/*(/.*)") 
+                          re-pattern 
+                          (re-matches request-path))]
+    (when (and (= app-name head) tail)
+      tail)))
 
-(defn- extension [resource-path]
-  (let [path-length (.length resource-path)]
-    (when (> path-length 2)
-      (let [dot-index (.lastIndexOf resource-path ".")]
-        (when (and (pos? dot-index) (< dot-index (dec path-length)))
-          (.substring resource-path (inc dot-index)))))))
+(defn- resource-request [request-path app-name]
+  (when-let [resource-path (resource-path request-path app-name)]
+    {:app-name      app-name
+     :resource-path resource-path}))
 
-(defn- content-type [resource-path]
-  (if (.isEmpty resource-path)
-    :application
-    (extension->content-type extension)))
-
-(defn- resource-request [http-exchange resource-path]
-  (let [content-type  (content-type resource-path)]    
-    (when content-type
-      (assoc (if (.isEmpty resource-path) 
-               {} 
-               {:resource-path resource-path}) 
-             :content-type content-type))))
-
-(defn- failure [status message]
-  {:status       status
-   :content-type ["text" "plain"]
-   :resource     (.getBytes message "UTF-8")})
-
-(defn- success [request resource]
-  (let [{content-type :content-type} request
-        content-type (if (= :application content-type)
-                       ["text" "html"]
-                       content-type)]
-    (assoc request :status       HttpURLConnection/HTTP_OK
-                   :content-type content-type
-                   :resource     resource)))
+(defn- failure [request-path]
+  (let [message (format "Request for resource '%s' failed!" request-path)]
+    {:status       HttpURLConnection/HTTP_UNAVAILABLE
+     :content-type "text/plain"
+     :content      (.getBytes message "UTF-8")}))
 
 (defn- send-response [http-exchange response]
-  (let [{:keys [status content-type resource]} response
-        content-type    (str (first content-type) "/" (second content-type))
-        response-length (alength resource)]
+  (let [{:keys [status content-type content]} response]
     (-> http-exchange 
-        (.sendResponseHeaders status response-length))
+        (.sendResponseHeaders status (alength content)))
     (-> http-exchange 
         .getResponseHeaders 
         (.set "Content-Type" content-type))
     (-> http-exchange
         .getResponseBody
-        (.write resource))))
+        (.write content))))
 
-(defn- request-handler [resource-finder context-path]
+(defn- request-handler [resource-finder app-name]
   (fn [http-exchange]
-    (if-let [path (resource-path http-exchange context-path)]
-      (if-let [request (resource-request http-exchange path)]
-        (if-let [resource (resource-finder request)]
-          (send-response http-exchange (success request resource))
-          (send-response http-exchange 
-                         (failure HttpURLConnection/HTTP_NOT_FOUND 
-                                  "Resource not found!")))
-        (send-response http-exchange 
-                       (failure HttpURLConnection/HTTP_UNSUPPORTED_TYPE 
-                                "Unsupported resource type!")))
-      (send-response http-exchange 
-                     (failure HttpURLConnection/HTTP_FORBIDDEN 
-                              "Invalid resource path!")))))
+    (let [request-path (-> http-exchange .getRequestURI .getPath)]
+      (if-let [request (resource-request request-path app-name)]
+        (if-let [response (resource-finder request)]
+          (send-response http-exchange response)
+          (send-response http-exchange (failure request-path)))
+        (send-response http-exchange (failure request-path))))))
 
-(defn- http-handler [resource-finder context-path]
-  (let [request-handler (request-handler resource-finder context-path)]
+(defn- http-handler [resource-finder app-name]
+  (let [request-handler (request-handler resource-finder app-name)]
     (reify
       HttpHandler
       (handle [this http-exchange]
@@ -111,7 +77,7 @@
   (if (nil? resource-finder)
     (throw (IllegalArgumentException. "The resource finder must not be nil!")))
   (let [context-path (context-path app-name)
-        http-handler (http-handler resource-finder context-path)
+        http-handler (http-handler resource-finder app-name)
         http-server  (doto (HttpServer/create (InetSocketAddress. port) 10)
                            (.createContext context-path http-handler)
                            (.start))]
