@@ -10,7 +10,7 @@
   (:import
     (java.util.regex Pattern)
     (java.net InetSocketAddress HttpURLConnection)
-    (com.sun.net.httpserver HttpServer HttpHandler HttpExchange)))
+    (com.sun.net.httpserver HttpServer HttpHandler)))
 
 (defn- context-path [app-name]
   (let [app-name (.trim (str app-name))]
@@ -50,6 +50,7 @@
 (defn- request-handler [resource-finder app-name]
   (fn [http-exchange]
     (let [request-path (-> http-exchange .getRequestURI .getPath)]
+      (log/debug (format "Handling request for resource: %s." request-path))
       (if-let [request (resource-request request-path app-name)]
         (if-let [response (resource-finder request)]
           (send-response http-exchange response)
