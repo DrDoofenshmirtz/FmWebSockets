@@ -36,14 +36,27 @@
       (.write output chunk))
     (.toByteArray output)))
 
+(defn- failure [status message]
+  (response status "text/plain" (.getBytes message "UTF-8")))
+
 (defn- find-app [path]
   (log/debug (format "Find app at %s..." path))
-  (response HttpURLConnection/HTTP_OK "text/html" (file->bytes path)))
+  (try
+    (response HttpURLConnection/HTTP_OK "text/html" (file->bytes path))
+    (catch Exception app-not-found
+      (log/error (format "App not found: %s!" path) app-not-found)
+      (failure HttpURLConnection/HTTP_NOT_FOUND "App not found!"))))
 
 (defn- find-resource [path]
   (log/debug (format "Find resource at %s..." path))
   (if-let [content-type (extension->content-type (extension path))]
-    (response HttpURLConnection/HTTP_OK content-type (file->bytes path))))
+    (try 
+      (response HttpURLConnection/HTTP_OK content-type (file->bytes path))
+      (catch Exception resource-not-found
+        (log/error (format "Resource not found: %s!" path) resource-not-found)
+        (failure HttpURLConnection/HTTP_NOT_FOUND "Resource not found!")))
+    (failure HttpURLConnection/HTTP_UNSUPPORTED_TYPE 
+             "Unsupported content type!")))
 
 (defn- join-paths [head tail]
   (cond
