@@ -1,7 +1,7 @@
 (ns
   ^{:doc 
   
-  "Resource management support for HTML5 WebSocket connections."
+  "Resource management support for HTML5 WebSockets connections."
     
     :author "Frank Mosebach"}
   fm.websockets.resources

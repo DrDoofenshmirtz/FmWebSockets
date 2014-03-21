@@ -1,7 +1,7 @@
 (ns
   ^{:doc 
   
-  "A basic http server tailored to deliver the resources of a single page app."
+  "A basic http server tailored to deliver the resources of a WebSockets app."
   
     :author "Frank Mosebach"}
   fm.websockets.resource-server
