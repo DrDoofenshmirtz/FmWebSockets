@@ -15,13 +15,14 @@
                                    :app-path  "index.html"
                                    :services  []})
 
-(defmacro defapp [& {:as config}]
+(defmacro defapp [app-name & {:as config}]
   (let [config-symbol (symbol "config-")
         config        (merge default-config config)
         {services :services} config]
     `(intern *ns* 
              '~config-symbol 
-             ~(assoc config :services `'~services))))
+             ~(assoc config :app-name (str app-name) 
+                            :services `'~services))))
   
 (defn load-config [config-path]
   (when (let [current-ns (-> *ns* str symbol)] 
