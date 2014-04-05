@@ -9,11 +9,6 @@
     [fm.resources.store :as rsc-store]
     [fm.resources.slot-extensions :as slxt]))
 
-(defn with-resource-store [connection resource-store]
-  (assert connection)
-  (assert resource-store)
-  (assoc connection ::resource-store resource-store))
-
 (defn resource-store [connection]
   (assert connection)
   (if-let [resource-store (::resource-store connection)]
@@ -124,6 +119,11 @@
 
 (defn message-handler [message-handler]
   (with-scope-hooks message-handler :message))
+
+(defn with-resource-store [connection resource-store]
+  (assert connection)
+  (assert resource-store)
+  (assoc connection ::resource-store resource-store))
 
 (defn connection-handler [connection-handler store-constructor]
   (assert connection-handler)
