@@ -7,7 +7,9 @@
   fm.websockets.resources
   (:require
     [fm.resources.store :as rsc-store]
-    [fm.resources.slot-extensions :as slxt]))
+    [fm.resources.slot-extensions :as slxt])
+  (:import 
+    (fm.websockets.exceptions ConnectionClosed)))
 
 (defn resource-store [connection]
   (assert connection)
@@ -64,12 +66,19 @@
   (assert connection)
   (apply rsc-store/remove! (resource-store connection) keys))
 
+(defn- ensure-connected [resource-store]
+  (when-not (true? (rsc-store/get-resource resource-store ::connected))
+    (throw (ConnectionClosed. "Resource lookup failed: connection closed!"))))
+
 (defn get-resource
   ([connection key]
     (get-resource connection key nil))
   ([connection key default]
     (assert connection)
-    (rsc-store/get-resource (resource-store connection) key default)))
+    (let [resource-store (resource-store connection)
+          resource       (rsc-store/get-resource resource-store key default)]
+      (ensure-connected resource-store)
+      resource)))
 
 (defn request-expired! [connection]
   (assert connection)
@@ -123,7 +132,9 @@
 (defn with-resource-store [connection resource-store]
   (assert connection)
   (assert resource-store)
-  (assoc connection ::resource-store resource-store))
+  (let [connection (assoc connection ::resource-store resource-store)]
+    (store! connection ::connected true :connection)
+    connection))
 
 (defn connection-handler [connection-handler store-constructor]
   (assert connection-handler)
