@@ -71,7 +71,7 @@
 (defn- fragment-seq [socket message]
   (lazy-seq
     (try
-      (if (seq message)
+      (when (seq message)
         (cons (first message) (fragment-seq socket (rest message))))
       (catch Exception x
         (if-let [x (caused-by x EndOfData)]
@@ -82,15 +82,15 @@
   (let [message-seq (prot/message-seq input-stream)
         wrapped-seq (fn wrapped-seq [message-seq]
                       (lazy-seq
-                        (if (seq message-seq)
-                          (try
-                            (cons (fragment-seq socket (first message-seq))
-                                  (wrapped-seq (rest message-seq)))
-                            (catch Exception x
-                              (if (.isClosed socket)
-                                (throw-connection-closed socket x)
-                                (throw x))))
-                          (throw-connection-closed socket))))]
+                        (or (try
+                              (when (seq message-seq)
+                                (cons (fragment-seq socket (first message-seq))
+                                      (wrapped-seq (rest message-seq))))
+                              (catch Exception x
+                                (if (.isClosed socket)
+                                  (throw-connection-closed socket x)
+                                  (throw x))))
+                            (throw-connection-closed socket))))]
     (wrapped-seq message-seq)))
 
 (defn- make-connection [connect-request socket input-stream output-stream]
