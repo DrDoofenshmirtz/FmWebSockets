@@ -30,10 +30,14 @@
         config (assoc config :app-name (str app-name))]
     `(def ~'config- ~config)))
 
-(defn- add-boot-hook [config]
+(defn- call-boot-hook [config]
   (if-let [boot-ns (:boot config)]
     (if-let [boot-hook (boot/find-boot-hook boot-ns)]
-      (assoc config :boot-hook boot-hook)
+      (try
+        (boot-hook config)
+        (catch Exception boot-error
+          (log/error "Boot hook failed!" boot-error)
+          nil))
       (throw (IllegalStateException. 
                (format "No boot hook found in namespace '%s'!" boot-ns))))
     config))
@@ -52,5 +56,5 @@
             (finally 
               (in-ns current-ns))))
     (when-let [config (ns-resolve 'fm.websockets.app.config._ 'config-)]
-      (-> config deref add-boot-hook))))
+      (call-boot-hook @config))))
 
