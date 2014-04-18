@@ -38,27 +38,16 @@
 (defn- app-store []
   (rstore/partition-store resource-store ::fm.websockets.app))
 
-(defn- start-resource-server [port app-name root-path app-path]
-  (rss/start-up port app-name (frf/finder root-path app-path)))
+(defn- start-resource-server [{:keys [http-port app-name root-path app-path]}]
+  (rss/start-up http-port app-name (frf/finder root-path app-path)))
 
-(defn- start-app-server [port service-namespaces]
-  (wss/start-up port
-                (hdlr/app-handler service-namespaces 
-                                  connection-store)))
+(defn- start-app-server [{ws-port :ws-port :as config}]
+  (wss/start-up ws-port (hdlr/app-handler config connection-store)))
 
 (defn- start-servers [config]
   (log/debug (format "Starting servers for WebSockets app: %s..." config))
-  (let [{:keys [app-name 
-                ws-port 
-                http-port 
-                root-path 
-                app-path 
-                services]} config
-        resource-server (start-resource-server http-port 
-                                               app-name 
-                                               root-path 
-                                               app-path)
-        app-server      (start-app-server ws-port services)]
+  (let [resource-server (start-resource-server config)
+        app-server      (start-app-server config)]
     (log/debug "...done. Waiting for clients.")    
     (fn stop-servers [log]
       (try
