@@ -6,7 +6,8 @@
     :author "Frank Mosebach"}
   fm.websockets.app.config
   (:require
-    [clojure.contrib.logging :as log]))
+    [clojure.contrib.logging :as log]
+    [fm.websockets.app.boot :as boot]))
 
 (def ^{:private true :const true} default-config 
                                   {:ws-port   17500
@@ -29,6 +30,14 @@
         config (assoc config :app-name (str app-name))]
     `(def ~'config- ~config)))
 
+(defn- add-boot-hook [config]
+  (if-let [boot-ns (:boot config)]
+    (if-let [boot-hook (boot/find-boot-hook boot-ns)]
+      (assoc config :boot-hook boot-hook)
+      (throw (IllegalStateException. 
+               (format "No boot hook found in namespace '%s'!" boot-ns))))
+    config))
+
 (defn load-config [config-path]
   (when (let [current-ns (-> *ns* str symbol)] 
           (try
@@ -43,5 +52,5 @@
             (finally 
               (in-ns current-ns))))
     (when-let [config (ns-resolve 'fm.websockets.app.config._ 'config-)]
-      (deref config))))
+      (-> config deref add-boot-hook))))
 
