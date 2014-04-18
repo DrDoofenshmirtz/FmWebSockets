@@ -7,7 +7,8 @@
   fm.websockets.app.config
   (:require
     [clojure.contrib.logging :as log]
-    [fm.websockets.app.boot :as boot]))
+    [fm.websockets.app.boot :as boot]
+    [fm.websockets.resources :as rsc]))
 
 (def ^{:private true :const true} default-config 
                                   {:ws-port   17500
@@ -57,4 +58,17 @@
               (in-ns current-ns))))
     (when-let [config (ns-resolve 'fm.websockets.app.config._ 'config-)]
       (call-boot-hook @config))))
+
+(def ^{:private true :const true} config-key :fm.websockets.app/config)
+
+(defn- store-config [connection config]
+  (rsc/store! connection config-key config :connection))
+
+(defn connection-handler [config]
+  (fn [connection]
+    (store-config connection config)
+    connection))
+
+(defn get-config [connection]
+  (rsc/get-resource connection config-key))
 
