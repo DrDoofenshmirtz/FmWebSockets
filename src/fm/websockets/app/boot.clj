@@ -4,9 +4,7 @@
   "Define a Hook supposed to be called when a WebSockets app is booted."
   
     :author "Frank Mosebach"}
-  fm.websockets.app.boot
-  (:require
-    [clojure.contrib.logging :as log]))
+  fm.websockets.app.boot)
 
 (defmacro def-boot-hook [hook]
   (let [hook-name (gensym "__boot-hook__")
