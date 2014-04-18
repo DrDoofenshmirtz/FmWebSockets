@@ -16,14 +16,11 @@
                                    :services  []})
 
 (defmacro defapp [app-name & {:as config}]
-  (let [config-symbol (symbol "config-")
-        config        (merge default-config config)
+  (let [config (merge default-config config)
         {services :services} config]
-    `(intern *ns* 
-             '~config-symbol 
-             ~(assoc config :app-name (str app-name) 
-                            :services `'~services))))
-  
+    `(def ~'config- ~(assoc config :app-name (str app-name) 
+                                   :services `'~services))))
+ 
 (defn load-config [config-path]
   (when (let [current-ns (-> *ns* str symbol)] 
           (try
@@ -33,7 +30,7 @@
             (load-file config-path)
             true
             (catch Exception invalid-config
-              (log/error "Invalid app config!")
+              (log/error "Invalid app config!" invalid-config)
               false)
             (finally 
               (in-ns current-ns))))
