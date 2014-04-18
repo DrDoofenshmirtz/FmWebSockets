@@ -15,12 +15,20 @@
                                    :app-path  "index.html"
                                    :services  []})
 
+(defn- quote-values [config & keys]
+  (reduce (fn [config key]
+            (if-let [value (key config)]
+              (assoc config key `'~value)
+              config)) 
+          config 
+          keys))
+
 (defmacro defapp [app-name & {:as config}]
   (let [config (merge default-config config)
-        {services :services} config]
-    `(def ~'config- ~(assoc config :app-name (str app-name) 
-                                   :services `'~services))))
- 
+        config (quote-values config :boot :services)
+        config (assoc config :app-name (str app-name))]
+    `(def ~'config- ~config)))
+
 (defn load-config [config-path]
   (when (let [current-ns (-> *ns* str symbol)] 
           (try
