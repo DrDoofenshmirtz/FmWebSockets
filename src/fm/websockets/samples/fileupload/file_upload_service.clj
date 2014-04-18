@@ -1,6 +1,9 @@
 (ns fm.websockets.samples.fileupload.file-upload-service
   (:require
     [clojure.contrib.logging :as log]
+    [fm.websockets.app.boot :as boot]
+    [fm.websockets.app.config :as cfg]
+    [fm.websockets.rpc.request :as req]
     [fm.websockets.rpc.targets :as tar])
   (:import
     (java.io File FileOutputStream IOException)
@@ -8,11 +11,23 @@
 
 (tar/defroute (tar/prefixed-request-name-route "file-upload" "."))
 
+(defn- prepare-uploads-directory []
+  (let [directory (File. (System/getProperty "user.home") "Uploads")]
+    (if (and (.isDirectory directory) (.canWrite directory))
+      directory
+      (if (or (.exists directory) (not (.mkdirs directory)))
+        (throw (IOException. "Failed to create 'Uploads' directory!"))
+        directory))))
+
+(boot/def-boot-hook (fn [config]
+                      (assoc config ::uploads-directory 
+                                    (prepare-uploads-directory))))
+
 (defn- data-bytes [data]
   (.getBytes (str data) "ISO-8859-1"))
 
 (defn- create-upload-directory [id]
-  (let [directory (File. (System/getProperty "user.home") "Uploads")
+  (let [directory (-> (req/connection) cfg/get-config ::uploads-directory)
         directory (File. directory id)]
     (if (or (.exists directory) (not (.mkdirs directory)))
       (throw (IOException. "Failed to create upload directory!"))
