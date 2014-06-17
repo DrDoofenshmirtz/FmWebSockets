@@ -11,12 +11,16 @@
   (:import 
     (fm.websockets.exceptions ConnectionClosed)))
 
-(defn resource-store [connection]
+(defn resource-store [connection context]
   (assert connection)
-  (if-let [resource-store (::resource-store connection)]
-    resource-store
+  (assert context)
+  (if-let [resource-stores (::resource-stores connection)]
+    (if-let [resource-store (resource-stores context)]
+      resource-store
+      (throw (IllegalStateException. 
+               (format "No resource store found for context '%s'!" context))))
     (throw (IllegalStateException.
-             "Connection does not have a resource store!"))))
+             "Connection does not have any attached resource stores!"))))
 
 (def ^{:private true} ordered-scopes [:request 
                                       :message 
@@ -46,51 +50,56 @@
 (defn- with-scope-slots [kwargs scope]
   (-> kwargs (with-expiration-slots scope) with-hook-slots))
 
-(defn store! [connection key resource scope & {:as kwargs}]
+(defn store! [connection context key resource scope & {:as kwargs}]
   (assert connection)
+  (assert context)
   (assert resource)
   (assert (valid-scope? scope))
-  (let [store  (resource-store connection)
-        kwargs (with-scope-slots kwargs scope)]
-    (apply rsc-store/store! store key resource (flatten (seq kwargs)))))
+  (let [resource-store (resource-store connection context)
+        kwargs         (-> kwargs (with-scope-slots scope) seq flatten)]
+    (apply rsc-store/store! resource-store key resource kwargs)))
+
+(defn- update-stores! [connection update]
+  (assert connection)
+  (reduce (fn [results [context resource-store]]
+            (if-let [resources (update resource-store)]
+              (assoc results context resources)
+              results)) 
+          nil 
+          (::resource-stores connection)))
 
 (defn send! [connection signal & args]
-  (assert connection)
-  (apply rsc-store/send! (resource-store connection) signal args))
+  (update-stores! connection #(apply rsc-store/send! % signal args)))
 
 (defn send-to! [connection keys signal & args]
-  (assert connection)
-  (apply rsc-store/send-to! (resource-store connection) keys signal args))
+  (update-stores! connection #(apply rsc-store/send-to! % keys signal args)))
 
 (defn remove! [connection & keys]
-  (assert connection)
-  (apply rsc-store/remove! (resource-store connection) keys))
+  (update-stores! connection #(apply rsc-store/remove! % keys)))
 
 (defn- ensure-connected [resource-store]
   (when-not (true? (rsc-store/get-resource resource-store ::connected))
     (throw (ConnectionClosed. "Resource lookup failed: connection closed!"))))
 
 (defn get-resource
-  ([connection key]
-    (get-resource connection key nil))
-  ([connection key default]
+  ([connection context key]
+    (get-resource connection context key nil))
+  ([connection context key default]
     (assert connection)
-    (let [resource-store (resource-store connection)
+    (assert context)
+    (let [resource-store (resource-store connection context)
           resource       (rsc-store/get-resource resource-store key default)]
       (ensure-connected resource-store)
       resource)))
 
 (defn request-expired! [connection]
-  (assert connection)
-  (slxt/scope-expired! (resource-store connection) :request))
+  (update-stores! connection #(slxt/scope-expired! % :request)))
 
 (defn message-expired! [connection]
-  (assert connection)
-  (slxt/scope-expired! (resource-store connection) :message))
+  (update-stores! connection #(slxt/scope-expired! % :message)))
 
 (defn connection-expired! [connection]
-  (assert connection)
-  (slxt/scope-expired! (resource-store connection) :connection))
+  (update-stores! connection #(slxt/scope-expired! % :connection)))
 
 (defn application-expired! [store]
   (assert store)
@@ -99,29 +108,28 @@
 (defn- with-prefix [keywrd prefix]
   (keyword (str prefix \- (name keywrd))))
 
-(defn- call-hooks [position scope store args]
+(defn- call-hooks [position scope connection args]
   (let [signal (with-prefix scope position)]
-    (apply rsc-store/send! store signal args)))
+    (update-stores! connection #(apply rsc-store/send! % signal args))))
 
-(defn- call-before-hooks [scope store args]
-  (call-hooks "before" scope store args))
+(defn- call-before-hooks [scope connection args]
+  (call-hooks "before" scope connection args))
 
-(defn- call-after-hooks [scope store args]
-  (call-hooks "after" scope store args))
+(defn- call-after-hooks [scope connection args]
+  (call-hooks "after" scope connection args))
 
 (defn- with-scope-hooks [handler scope]
   (assert (not (nil? handler)))
   (assert (valid-scope? scope))
   (fn [connection & args]
-    (let [store     (resource-store connection)
-          hook-args (cons connection args)]
+    (let [hook-args (cons connection args)]
       (try
-        (call-before-hooks scope store hook-args)
+        (call-before-hooks scope connection hook-args)
         (let [result (apply handler connection args)]
-          (call-after-hooks scope store hook-args)
+          (call-after-hooks scope connection hook-args)
           result)        
         (finally
-          (slxt/scope-expired! store scope))))))
+          (update-stores! connection #(slxt/scope-expired! % scope)))))))
 
 (defn request-handler [request-handler]
   (with-scope-hooks request-handler :request))
@@ -129,16 +137,29 @@
 (defn message-handler [message-handler]
   (with-scope-hooks message-handler :message))
 
-(defn with-resource-store [connection resource-store]
+(defn with-resource-store [connection context resource-store]
   (assert connection)
+  (assert context)
   (assert resource-store)
-  (let [connection (assoc connection ::resource-store resource-store)]
-    (store! connection ::connected true :connection)
+  (let [connection (assoc-in connection 
+                             [::resource-stores context] 
+                             resource-store)]
+    (store! connection context ::connected true :connection)
     connection))
 
-(defn connection-handler [connection-handler store-constructor]
+(defn- attach-resource-stores [connection store-provider contexts]
+  (reduce #(with-resource-store connection % (store-provider connection %)) 
+          connection 
+          contexts))
+
+(defn connection-handler [connection-handler store-provider context & contexts]
   (assert connection-handler)
-  (assert store-constructor)
-  (comp (with-scope-hooks connection-handler :connection)
-        #(with-resource-store % (store-constructor %))))
+  (assert store-provider)
+  (assert context)
+  (let [connection-handler (with-scope-hooks connection-handler :connection)
+        contexts           (cons context contexts)]
+    (fn [connection]
+      (-> connection
+          (attach-resource-stores store-provider contexts)
+          connection-handler))))
 
