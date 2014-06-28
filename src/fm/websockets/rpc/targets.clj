@@ -77,9 +77,12 @@
     (throw (IllegalArgumentException. (format "Illegal channel id: '%s'!" id))))
   id)
 
+(def ^{:private true :const true} channel-context :connection)
+
 (defn- get-resource [connection channel-id]
   (if-let [resource (-> connection 
-                        (wsr/get-resource (check-channel-id channel-id)) 
+                        (wsr/get-resource channel-context 
+                                          (check-channel-id channel-id)) 
                         ::resource)]
     resource
     (throw (IllegalStateException. "Channel closed or aborted!"))))
@@ -89,9 +92,9 @@
         close!   (:abort slots)
         resource (wrap-resource resource close!)
         id       (channel-id)]
-    (wsr/store! connection id resource 
-                :connection
-                :close! close-resource! 
+    (wsr/store! connection channel-context 
+                id resource :connection
+                :close! close-resource!
                 :slots  resource-slots)
     id))
 
@@ -122,7 +125,7 @@
 
 (defn- abort [connection abort slots [id]]
   (let [id (check-channel-id id)]
-    (wsr/remove! connection id)
+    (wsr/remove! connection channel-context id)
     nil))
 
 (defn- close [connection close slots [id]]
@@ -134,7 +137,7 @@
         close!    (get-in resources [:contents id :resource ::close!])]
     (when-not (identical? close close!)
       (throw (IllegalStateException. "Channel closed or aborted!")))
-    (wsr/remove! connection id)
+    (wsr/remove! connection channel-context id)
     nil))
 
 (defn- operation->keyword [operation]
