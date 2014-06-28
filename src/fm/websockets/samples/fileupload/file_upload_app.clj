@@ -32,14 +32,14 @@
                                           ppg/message-handler
                                           rscs/message-handler))
 
-(defn- store-constructor [connection]
-  (rstore/partition-store resource-store (:id connection)))
+(defn- store-provider [connection id]
+  (rstore/partition-store resource-store id))
 
 (def ^{:private true} 
      connection-handler (-> (comp (mloop/connection-handler message-handler) 
                                   (jrpc/connection-handler)
                                   (ppg/connection-handler))
-                            (rscs/connection-handler store-constructor)))
+                            (rscs/connection-handler store-provider)))
 
 (defn- close-resources []
   (println "Terminating application FileUploadApp...")
