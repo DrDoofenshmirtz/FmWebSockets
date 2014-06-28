@@ -134,7 +134,8 @@
                                 [id] 
                                 ::update 
                                 #(assoc % ::close! close))
-        close!    (get-in resources [:contents id :resource ::close!])]
+        path      [channel-context :contents id :resource ::close!]
+        close!    (get-in resources path)]
     (when-not (identical? close close!)
       (throw (IllegalStateException. "Channel closed or aborted!")))
     (wsr/remove! connection channel-context id)
