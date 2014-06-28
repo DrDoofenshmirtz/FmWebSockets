@@ -86,8 +86,8 @@
 (defn send-to! [connection keys signal & args]
   (update-stores! connection #(apply rsc-store/send-to! % keys signal args)))
 
-(defn remove! [connection & keys]
-  (update-stores! connection #(apply rsc-store/remove! % keys)))
+(defn remove! [connection context & keys]
+  (apply rsc-store/remove! (resource-store connection context) keys))
 
 (defn- ensure-connected [resource-store]
   (when-not (true? (rsc-store/get-resource resource-store ::connected))
