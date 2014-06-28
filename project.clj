@@ -1,6 +1,6 @@
 ;; Leiningen project file for the FmWebSockets clojure project.
 
-(defproject fm/fm-websockets "1.0.0-SNAPSHOT"
+(defproject fm/fm-websockets "1.1.0-SNAPSHOT"
   :description "FmWebSockets: Clojure HTML5 WebSockets."
   :dependencies [[org.clojure/clojure "1.2.1"]
                  [org.clojure/clojure-contrib "1.2.0"]
