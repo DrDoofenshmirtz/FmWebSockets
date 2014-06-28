@@ -11,9 +11,20 @@
   (:import 
     (fm.websockets.exceptions ConnectionClosed)))
 
+(def ^{:private true :const true} valid-contexts #{:application :connection})
+
+(defn- valid-context? [context]
+  (contains? valid-contexts context))
+
+(defn- ensure-valid-context [context]
+  (if (valid-context? context)
+    context
+    (throw (IllegalArgumentException. 
+             (format "Invalid resource context: '%s'!" context)))))
+
 (defn resource-store [connection context]
   (assert connection)
-  (assert context)
+  (ensure-valid-context context)
   (if-let [resource-stores (::resource-stores connection)]
     (if-let [resource-store (resource-stores context)]
       resource-store
@@ -22,16 +33,17 @@
     (throw (IllegalStateException.
              "Connection does not have any attached resource stores!"))))
 
-(def ^{:private true} ordered-scopes [:request 
-                                      :message 
-                                      :connection 
-                                      :application])
+(def ^{:private true :const true} ordered-scopes 
+                                  [:request :message :connection :application])
 
-(def ^{:private true} valid-scopes (set ordered-scopes))
+(def ^{:private true :const true} valid-scopes (set ordered-scopes))
 
-(def ^{:private true} hook-signals [:before-request    :after-request 
-                                    :before-message    :after-message
-                                    :before-connection :after-connection])
+(def ^{:private true :const true} hook-signals [:before-request    
+                                                :after-request 
+                                                :before-message    
+                                                :after-message
+                                                :before-connection 
+                                                :after-connection])
 
 (defn- valid-scope? [scope]
   (contains? valid-scopes scope))
@@ -139,27 +151,28 @@
 
 (defn with-resource-store [connection context resource-store]
   (assert connection)
-  (assert context)
   (assert resource-store)
+  (ensure-valid-context context)
   (let [connection (assoc-in connection 
                              [::resource-stores context] 
                              resource-store)]
     (store! connection context ::connected true :connection)
     connection))
 
-(defn- attach-resource-stores [connection store-provider contexts]
-  (reduce #(with-resource-store connection % (store-provider connection %)) 
-          connection 
-          contexts))
+(defn- attach-resource-stores [connection store-provider]
+  (-> connection
+      (with-resource-store :application 
+                           (store-provider connection ::application))
+      (with-resource-store :connection 
+                           (store-provider connection 
+                                           [::connection (:id connection)]))))
 
-(defn connection-handler [connection-handler store-provider context & contexts]
+(defn connection-handler [connection-handler store-provider]
   (assert connection-handler)
   (assert store-provider)
-  (assert context)
-  (let [connection-handler (with-scope-hooks connection-handler :connection)
-        contexts           (cons context contexts)]
+  (let [connection-handler (with-scope-hooks connection-handler :connection)]
     (fn [connection]
       (-> connection
-          (attach-resource-stores store-provider contexts)
+          (attach-resource-stores store-provider)
           connection-handler))))
 
