@@ -14,9 +14,10 @@
     (java.util UUID)
     (java.util.concurrent Executors TimeUnit)))
 
-(def ^{:private true} ping-scheduler (Executors/newScheduledThreadPool 2))
+(def ^{:private true :const true} ping-scheduler 
+                                  (Executors/newScheduledThreadPool 2))
 
-(def ^{:private true} ping-delay-seconds 30)
+(def ^{:private true :const true} ping-delay-seconds 30)
 
 (defn- send-pong [connection pong-bytes]
   (let [pong-content (seq pong-bytes)]
@@ -101,8 +102,12 @@
                              (:id connection)) 
                      ping-error))))))
 
+(def ^{:private true :const true} ping-pong-context :connection)
+
 (defn- ping-backlog [connection]
-  (-> connection (rsc/get-resource ::ping-pong) (::ping-backlog 0)))
+  (-> connection 
+      (rsc/get-resource ping-pong-context ::ping-pong) 
+      (::ping-backlog 0)))
 
 (defn- ping-task [connection start-gate max-backlog]
   (fn []
@@ -125,7 +130,7 @@
         slots      {::handle-ping handle-ping
                     ::drop-ping   drop-ping
                     ::handle-pong handle-pong}]
-    (rsc/store! connection 
+    (rsc/store! connection ping-pong-context 
                 ::ping-pong ping-pong 
                 :connection
                 :close! close!
