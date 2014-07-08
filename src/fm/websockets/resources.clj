@@ -6,6 +6,7 @@
     :author "Frank Mosebach"}
   fm.websockets.resources
   (:require
+    [fm.resources.core :as rsc-core]
     [fm.resources.store :as rsc-store]
     [fm.resources.slot-extensions :as slxt])
   (:import 
@@ -61,6 +62,13 @@
 
 (defn- with-scope-slots [kwargs scope]
   (-> kwargs (with-expiration-slots scope) with-hook-slots))
+
+(defn store
+  ([resources key resource scope]
+    (store resources key resource scope nil))
+  ([resources key resource scope kwargs]
+    (assert (valid-scope? scope))
+    (rsc-core/store resources key resource (with-scope-slots kwargs scope))))
 
 (defn store! [connection context key resource scope & {:as kwargs}]
   (assert connection)
