@@ -97,8 +97,11 @@
 (defn remove! [connection context & keys]
   (apply rsc-store/remove! (resource-store connection context) keys))
 
-(defn- ensure-connected [resource-store]
-  (when-not (true? (rsc-store/get-resource resource-store ::connected))
+(defn- connected-key [connection]
+  [::connected? (:id connection)])
+
+(defn- ensure-connected [resource-store connected-key]
+  (when-not (true? (rsc-store/get-resource resource-store connected-key))
     (throw (ConnectionClosed. "Resource lookup failed: connection closed!"))))
 
 (defn get-resource
@@ -109,7 +112,7 @@
     (assert context)
     (let [resource-store (resource-store connection context)
           resource       (rsc-store/get-resource resource-store key default)]
-      (ensure-connected resource-store)
+      (ensure-connected resource-store (connected-key connection))
       resource)))
 
 (defn request-expired! [connection]
@@ -164,7 +167,7 @@
   (let [connection (assoc-in connection 
                              [::resource-stores context] 
                              resource-store)]
-    (store! connection context ::connected true :connection)
+    (store! connection context (connected-key connection) true :connection)
     connection))
 
 (defn- attach-resource-stores [connection store-provider]
