@@ -9,10 +9,8 @@
                  [fm/fm-core "1.0.0-SNAPSHOT"]
                  [fm/fm-resources "1.0.0-SNAPSHOT"]]                 
   :aot [fm.websockets.exceptions
-        fm.websockets.rpc.types
         fm.websockets.samples.counter.counter-app
-        fm.websockets.samples.memprof.memory-profiling-app
-        fm.websockets.samples.fileupload.file-upload-app]       
+        fm.websockets.samples.memprof.memory-profiling-app]       
   :jar-name "fm-websockets.jar"
   :omit-source false
   :jar-exclusions [#"(?:^|/).svn/" 
