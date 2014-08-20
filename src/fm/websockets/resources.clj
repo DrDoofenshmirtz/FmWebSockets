@@ -171,12 +171,12 @@
     connection))
 
 (defn- attach-resource-stores [connection store-provider]
-  (-> connection
-      (with-resource-store :application 
-                           (store-provider connection ::application))
-      (with-resource-store :connection 
-                           (store-provider connection 
-                                           [::connection (:id connection)]))))
+  (if-let [resource-stores (store-provider connection)]
+    (-> connection
+        (with-resource-store :application (:application resource-stores))
+        (with-resource-store :connection (:connection resource-stores)))
+    (throw (IllegalStateException. 
+             "Store provider does not provide any resource stores!"))))
 
 (defn connection-handler [connection-handler store-provider]
   (assert connection-handler)
